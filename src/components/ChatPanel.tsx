@@ -1,15 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Session } from '../types'
+import type { Session } from '../types'
 
 interface ChatPanelProps {
   session: Session
   onSendMessage: (text: string) => void
   onRename: (name: string) => void
+  onAbort?: () => void
 }
 
-export function ChatPanel({ session, onSendMessage, onRename }: ChatPanelProps) {
+export function ChatPanel({ session, onSendMessage, onRename, onAbort }: ChatPanelProps) {
   const [input, setInput] = useState('')
   const [isEditingName, setIsEditingName] = useState(false)
   const [editName, setEditName] = useState(session.name)
@@ -42,6 +43,7 @@ export function ChatPanel({ session, onSendMessage, onRename }: ChatPanelProps) 
     }
   }
 
+  // @ts-ignore used in template
   const formatTime = (ts: number) => {
     const d = new Date(ts)
     return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -158,9 +160,15 @@ export function ChatPanel({ session, onSendMessage, onRename }: ChatPanelProps) 
           placeholder="Enter message..."
           rows={1}
         />
-        <button className="chat-send" onClick={handleSend} disabled={!input.trim()}>
-          ✈
-        </button>
+        {onAbort ? (
+          <button className="chat-send" onClick={onAbort} title="Stop response">
+            ■
+          </button>
+        ) : (
+          <button className="chat-send" onClick={handleSend} disabled={!input.trim()}>
+            ✈
+          </button>
+        )}
       </div>
       <div className="chat-input-hint">Press Enter to send</div>
     </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Session } from '../types'
+import type { Session } from '../types'
 
 interface SidebarProps {
   sessions: Session[]
