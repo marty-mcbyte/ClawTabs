@@ -19,9 +19,9 @@ const defaultStatus: SystemStatus = {
 
 function App() {
   const [sessions, setSessions] = useState<Session[]>([
-    { id: generateId(), name: 'General', messages: [], isActive: true, createdAt: Date.now() }
+    { id: 'init', name: 'General', messages: [], isActive: true, createdAt: Date.now() }
   ])
-  const [activeSessionId, setActiveSessionId] = useState(sessions[0].id)
+  const [activeSessionId, setActiveSessionId] = useState('init')
   const [activeTab, setActiveTab] = useState<'chat' | 'ops'>('chat')
   const [searchQuery, setSearchQuery] = useState('')
   const [status] = useState<SystemStatus>(defaultStatus)
