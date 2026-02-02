@@ -12,6 +12,14 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 10)
 }
 
+function extractContent(raw: any): string {
+  if (typeof raw === 'string') return raw
+  if (Array.isArray(raw)) {
+    return raw.filter((c: any) => c.type === 'text').map((c: any) => c.text ?? '').join('')
+  }
+  return String(raw ?? '')
+}
+
 function getConfigFromUrl() {
   const params = new URLSearchParams(window.location.search)
   return {
@@ -148,6 +156,7 @@ function App() {
     if (connStatus !== 'connected' || !gwRef.current) return
 
     gwRef.current.listSessions().then(async (remoteSessions: any[]) => {
+      console.log('[GW] sessions.list response:', JSON.stringify(remoteSessions).substring(0, 500))
       if (!Array.isArray(remoteSessions) || remoteSessions.length === 0) {
         // No sessions from gateway — create a local placeholder
         const fallback: Session = {
@@ -163,8 +172,8 @@ function App() {
       }
 
       const loaded: Session[] = remoteSessions.map((rs: any) => ({
-        id: rs.sessionKey ?? rs.id ?? rs.sessionId ?? generateId(),
-        name: rs.name ?? rs.label ?? rs.title ?? rs.sessionKey ?? 'Session',
+        id: rs.key ?? rs.sessionKey ?? rs.id ?? generateId(),
+        name: rs.displayName ?? rs.name ?? rs.label ?? rs.title ?? rs.key ?? 'Session',
         messages: [],
         isActive: true,
         createdAt: rs.createdAt ?? rs.created ?? Date.now()
@@ -173,21 +182,24 @@ function App() {
       setSessions(loaded)
       setActiveSessionId(loaded[0].id)
 
-      // Load history for first session
-      try {
-        const history = await gwRef.current!.chatHistory(loaded[0].id)
-        if (Array.isArray(history) && history.length > 0) {
-          const msgs: Message[] = history.map((m: any) => ({
-            id: m.id ?? generateId(),
-            role: m.role ?? 'assistant',
-            content: m.content ?? m.text ?? '',
-            timestamp: m.timestamp ?? m.ts ?? Date.now()
-          }))
-          setSessions(prev => prev.map(s =>
-            s.id === loaded[0].id ? { ...s, messages: msgs } : s
-          ))
-        }
-      } catch {}
+      // Load history for all sessions
+      for (const sess of loaded) {
+        try {
+          const history = await gwRef.current!.chatHistory(sess.id)
+          console.log('[GW] chat.history for', sess.id, ':', JSON.stringify(history).substring(0, 500))
+          if (Array.isArray(history) && history.length > 0) {
+            const msgs: Message[] = history.map((m: any) => ({
+              id: m.id ?? generateId(),
+              role: m.role ?? 'assistant',
+              content: extractContent(m.content) || m.text || '',
+              timestamp: m.timestamp ?? m.ts ?? Date.now()
+            }))
+            setSessions(prev => prev.map(s =>
+              s.id === sess.id ? { ...s, messages: msgs } : s
+            ))
+          }
+        } catch {}
+      }
     }).catch(() => {
       // Gateway connected but sessions.list failed — use fallback
       const fallback: Session = {
@@ -207,7 +219,7 @@ function App() {
         const msgs: Message[] = history.map((m: any) => ({
           id: m.id ?? generateId(),
           role: m.role ?? 'assistant',
-          content: m.content ?? m.text ?? '',
+          content: extractContent(m.content) || m.text || '',
           timestamp: m.timestamp ?? m.ts ?? Date.now()
         }))
         setSessions(prev => prev.map(s =>
@@ -327,13 +339,14 @@ function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [sessions, activeSessionId, createSession, closeSession])
 
-  const handleSendMessage = useCallback((text: string) => {
+  const handleSendMessage = useCallback((text: string, attachments?: any[]) => {
     if (!activeSession) return
     const userMsg: Message = {
       id: generateId(),
       role: 'user',
       content: text,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      ...(attachments?.length ? { attachments } : {})
     }
     addMessage(activeSession.id, userMsg)
     setTyping(activeSession.id, true)
@@ -351,7 +364,7 @@ function App() {
       return
     }
 
-    gw.chatSend(activeSession.id, text)
+    gw.chatSend(activeSession.id, text, attachments)
       .then((ack: any) => {
         if (ack?.runId) setCurrentRunId(ack.runId)
         // Response will stream via chat events

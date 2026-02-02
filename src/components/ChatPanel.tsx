@@ -5,7 +5,7 @@ import type { Session } from '../types'
 
 interface ChatPanelProps {
   session: Session
-  onSendMessage: (text: string) => void
+  onSendMessage: (text: string, attachments?: any[]) => void
   onRename: (name: string) => void
   onAbort?: () => void
 }
@@ -14,6 +14,7 @@ export function ChatPanel({ session, onSendMessage, onRename, onAbort }: ChatPan
   const [input, setInput] = useState('')
   const [isEditingName, setIsEditingName] = useState(false)
   const [editName, setEditName] = useState(session.name)
+  const [stagedImage, setStagedImage] = useState<{ dataUrl: string; mimeType: string } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -31,9 +32,30 @@ export function ChatPanel({ session, onSendMessage, onRename, onAbort }: ChatPan
 
   const handleSend = () => {
     const text = input.trim()
-    if (!text) return
+    if (!text && !stagedImage) return
+    const attachments = stagedImage ? [stagedImage] : undefined
+    const msgText = text || (stagedImage ? '[image]' : '')
     setInput('')
-    onSendMessage(text)
+    setStagedImage(null)
+    onSendMessage(msgText, attachments)
+  }
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = () => {
+          setStagedImage({ dataUrl: reader.result as string, mimeType: file.type })
+        }
+        reader.readAsDataURL(file)
+        return
+      }
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -106,6 +128,11 @@ export function ChatPanel({ session, onSendMessage, onRename, onAbort }: ChatPan
               <div className="message-label">
                 {msg.role === 'user' ? 'USER.INPUT' : msg.role === 'assistant' ? 'SYS.RESPONSE' : 'SYS.ALERT'}
               </div>
+              {msg.attachments?.map((att, i) => (
+                <div key={i} className="message-attachment">
+                  <img src={att.dataUrl} alt="attachment" />
+                </div>
+              ))}
               <div className="message-content">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
@@ -157,6 +184,7 @@ export function ChatPanel({ session, onSendMessage, onRename, onAbort }: ChatPan
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder="Enter message..."
           rows={1}
         />
@@ -165,11 +193,17 @@ export function ChatPanel({ session, onSendMessage, onRename, onAbort }: ChatPan
             ■
           </button>
         ) : (
-          <button className="chat-send" onClick={handleSend} disabled={!input.trim()}>
+          <button className="chat-send" onClick={handleSend} disabled={!input.trim() && !stagedImage}>
             ✈
           </button>
         )}
       </div>
+      {stagedImage && (
+        <div className="staged-image-preview">
+          <img src={stagedImage.dataUrl} alt="Pasted" />
+          <button className="staged-image-remove" onClick={() => setStagedImage(null)}>✕</button>
+        </div>
+      )}
       <div className="chat-input-hint">Press Enter to send</div>
     </div>
   )

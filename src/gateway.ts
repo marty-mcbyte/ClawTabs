@@ -151,11 +151,12 @@ export class Gateway {
     return res?.messages ?? res ?? []
   }
 
-  async chatSend(sessionKey: string, text: string): Promise<any> {
+  async chatSend(sessionKey: string, text: string, attachments?: any[]): Promise<any> {
     return this.request('chat.send', {
       sessionKey,
       message: text,
-      idempotencyKey: this.genIdempotencyKey()
+      idempotencyKey: this.genIdempotencyKey(),
+      ...(attachments?.length ? { attachments } : {})
     })
   }
 
