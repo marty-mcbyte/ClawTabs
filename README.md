@@ -1,6 +1,13 @@
-# ClawTabs
+<p align="center">
+  <img src="docs/mascot.jpg" width="120" alt="ClawTabs mascot" />
+</p>
 
-> Multi-session terminal-style chat UI for [OpenClaw](https://github.com/openclaw/openclaw). Cyberpunk aesthetic, local-first, browser-based.
+<h1 align="center">ClawTabs</h1>
+
+<p align="center">
+  Multi-session terminal-style chat UI for <a href="https://github.com/openclaw/openclaw">OpenClaw</a>.<br/>
+  Cyberpunk aesthetic. Local-first. Browser-based.
+</p>
 
 ![ClawTabs UI](docs/screenshot.png)
 

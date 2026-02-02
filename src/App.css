@@ -85,6 +85,12 @@ body {
   font-weight: 700;
 }
 
+.logo-mascot {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  object-fit: cover;
+}
 .logo-gt { color: var(--accent); }
 .logo-name { color: var(--text-primary); letter-spacing: 1px; }
 .logo-version { color: var(--text-dim); font-size: 11px; font-weight: 400; }

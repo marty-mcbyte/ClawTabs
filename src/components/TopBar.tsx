@@ -14,7 +14,7 @@ export function TopBar({ status, activeTab, onTabChange }: TopBarProps) {
     <div className="top-bar">
       <div className="top-bar-left">
         <span className="top-bar-logo">
-          <span className="logo-gt">&gt;.</span>
+          <img src="/mascot.jpg" alt="ClawTabs" className="logo-mascot" />
           <span className="logo-name">CLAWTABS</span>
           <span className="logo-version">v0.2</span>
         </span>
