@@ -1,73 +1,66 @@
-# React + TypeScript + Vite
+# ClawTabs
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> Multi-session terminal-style chat UI for [OpenClaw](https://github.com/openclaw/openclaw). Cyberpunk aesthetic, local-first, browser-based.
 
-Currently, two official plugins are available:
+![ClawTabs UI](docs/screenshot.png)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## React Compiler
+- **Multi-session tabs** — Run multiple independent conversations simultaneously
+- **Transmission sidebar** — Browse, search, and manage all sessions at a glance
+- **Cyberpunk terminal aesthetic** — Dark theme, green accent, scanline overlay, JetBrains Mono
+- **Markdown rendering** — Full markdown support with inline code and code blocks
+- **Keyboard shortcuts** — Ctrl+N (new), Ctrl+W (close), Ctrl+Tab (switch), Ctrl+1-9 (jump)
+- **System status bar** — Connection state, session count, real-time clock
+- **Session management** — Create, rename (double-click), close, search across all sessions
+- **100% local** — No cloud, no external dependencies. Runs in your browser on localhost
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Quick Start
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+git clone https://github.com/marty-mcbyte/ClawTabs.git
+cd ClawTabs
+npm install
+npm run build
+npx serve dist -p 8088
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Then open `http://localhost:8088` in your browser.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Development
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
+
+## Tech Stack
+
+- React 19 + TypeScript
+- Vite
+- react-markdown + remark-gfm
+- JetBrains Mono font
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+N` | New session |
+| `Ctrl+W` | Close current session |
+| `Ctrl+Tab` | Next session |
+| `Ctrl+Shift+Tab` | Previous session |
+| `Ctrl+1-9` | Jump to session by number |
+| `Enter` | Send message |
+| `Shift+Enter` | New line |
+
+## Roadmap
+
+- [ ] Wire up to OpenClaw gateway WebSocket for real conversations
+- [ ] Session persistence (localStorage / file-based)
+- [ ] Drag-to-reorder sessions
+- [ ] Export/import sessions as markdown/JSON
+- [ ] Search across all session histories
+- [ ] OPS tab with system monitoring
+
+## License
+
+MIT
