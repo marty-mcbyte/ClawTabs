@@ -13,3 +13,10 @@ export interface Session {
   isTyping?: boolean
   createdAt: number
 }
+
+export interface SystemStatus {
+  connected: boolean
+  sysStatus: 'NOMINAL' | 'DEGRADED' | 'ERROR'
+  memStatus: 'OK' | 'HIGH' | 'CRITICAL'
+  netStatus: 'STABLE' | 'UNSTABLE' | 'DOWN'
+}

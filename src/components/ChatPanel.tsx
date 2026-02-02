@@ -1,13 +1,18 @@
 import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Session } from '../types'
 
 interface ChatPanelProps {
   session: Session
   onSendMessage: (text: string) => void
+  onRename: (name: string) => void
 }
 
-export function ChatPanel({ session, onSendMessage }: ChatPanelProps) {
+export function ChatPanel({ session, onSendMessage, onRename }: ChatPanelProps) {
   const [input, setInput] = useState('')
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editName, setEditName] = useState(session.name)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -18,6 +23,10 @@ export function ChatPanel({ session, onSendMessage }: ChatPanelProps) {
   useEffect(() => {
     inputRef.current?.focus()
   }, [session.id])
+
+  useEffect(() => {
+    setEditName(session.name)
+  }, [session.name])
 
   const handleSend = () => {
     const text = input.trim()
@@ -41,56 +50,119 @@ export function ChatPanel({ session, onSendMessage }: ChatPanelProps) {
   return (
     <div className="chat-panel">
       <div className="chat-header">
-        <span className="chat-header-name">{session.name}</span>
-        <span className="chat-header-id">#{session.id}</span>
-        <span className="chat-header-count">{session.messages.length} messages</span>
+        <div className="chat-header-left">
+          <span className="chat-header-dot">■</span>
+          {isEditingName ? (
+            <input
+              className="chat-header-rename"
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              onBlur={() => {
+                if (editName.trim()) onRename(editName.trim())
+                setIsEditingName(false)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  if (editName.trim()) onRename(editName.trim())
+                  setIsEditingName(false)
+                }
+                if (e.key === 'Escape') setIsEditingName(false)
+              }}
+              autoFocus
+            />
+          ) : (
+            <span
+              className="chat-header-name"
+              onDoubleClick={() => setIsEditingName(true)}
+            >
+              {session.name}
+            </span>
+          )}
+          <button className="chat-header-edit" onClick={() => setIsEditingName(true)}>✎</button>
+        </div>
+        <div className="chat-header-right">
+          <span className="chat-header-meta">
+            SYS.{session.isTyping ? 'PROCESSING' : 'NOMINAL'} | MEM.OK | NET.STABLE
+          </span>
+        </div>
       </div>
+
       <div className="chat-messages">
         {session.messages.length === 0 && (
           <div className="chat-empty">
-            <div className="chat-empty-icon">⟩_</div>
-            <div className="chat-empty-text">New session initialized.</div>
-            <div className="chat-empty-hint">Type a message to begin.</div>
+            <div className="chat-empty-icon">&gt;_</div>
+            <div className="chat-empty-text">Transmission channel open.</div>
+            <div className="chat-empty-hint">Enter message to begin communication.</div>
           </div>
         )}
         {session.messages.map(msg => (
           <div key={msg.id} className={`message message-${msg.role}`}>
-            <div className="message-header">
-              <span className="message-role">
-                {msg.role === 'user' ? '▸ YOU' : msg.role === 'assistant' ? '◂ CLAW' : '◆ SYS'}
-              </span>
-              <span className="message-time">{formatTime(msg.timestamp)}</span>
+            {msg.role === 'assistant' && (
+              <div className="message-avatar">■</div>
+            )}
+            <div className="message-body">
+              <div className="message-label">
+                {msg.role === 'user' ? 'USER.INPUT' : msg.role === 'assistant' ? 'SYS.RESPONSE' : 'SYS.ALERT'}
+              </div>
+              <div className="message-content">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    code({ className, children, ...props }) {
+                      const isInline = !className
+                      return isInline ? (
+                        <code className="inline-code" {...props}>{children}</code>
+                      ) : (
+                        <pre className="code-block">
+                          <code className={className} {...props}>{children}</code>
+                        </pre>
+                      )
+                    }
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+              </div>
             </div>
-            <div className="message-content">{msg.content}</div>
+            {msg.role === 'user' && (
+              <div className="message-actions">
+                <button className="msg-action-btn">&gt;</button>
+              </div>
+            )}
           </div>
         ))}
         {session.isTyping && (
           <div className="message message-assistant">
-            <div className="message-header">
-              <span className="message-role">◂ CLAW</span>
-            </div>
-            <div className="message-content typing-indicator">
-              <span>●</span><span>●</span><span>●</span>
+            <div className="message-avatar">■</div>
+            <div className="message-body">
+              <div className="message-label">SYS.RESPONSE</div>
+              <div className="message-content">
+                <span className="typing-indicator">
+                  <span>●</span><span>●</span><span>●</span>
+                </span>
+              </div>
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
+
       <div className="chat-input-area">
-        <div className="input-prompt">⟩</div>
+        <div className="input-prompt">&gt;</div>
         <textarea
           ref={inputRef}
           className="chat-input"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Enter command..."
+          placeholder="Enter message..."
           rows={1}
         />
         <button className="chat-send" onClick={handleSend} disabled={!input.trim()}>
-          SEND
+          ✈
         </button>
       </div>
+      <div className="chat-input-hint">Press Enter to send</div>
     </div>
   )
 }
