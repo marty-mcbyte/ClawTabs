@@ -163,4 +163,12 @@ export class Gateway {
   async chatAbort(sessionKey: string, runId?: string): Promise<void> {
     await this.request('chat.abort', { sessionKey, ...(runId ? { runId } : {}) })
   }
+
+  async deleteSession(sessionKey: string): Promise<void> {
+    await this.request('sessions.delete', { sessionKey })
+  }
+
+  async renameSession(sessionKey: string, name: string): Promise<void> {
+    await this.request('session.update', { sessionKey, displayName: name })
+  }
 }

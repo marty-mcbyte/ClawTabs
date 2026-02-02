@@ -21,6 +21,7 @@ export function Sidebar({
 }: SidebarProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const startRename = (id: string, currentName: string) => {
     setEditingId(id)
@@ -34,8 +35,19 @@ export function Sidebar({
     setEditingId(null)
   }
 
+  const handleDelete = (id: string) => {
+    if (confirmDeleteId === id) {
+      onClose(id)
+      setConfirmDeleteId(null)
+    } else {
+      setConfirmDeleteId(id)
+      // Auto-clear confirmation after 3 seconds
+      setTimeout(() => setConfirmDeleteId(prev => prev === id ? null : prev), 3000)
+    }
+  }
+
   return (
-    <div className="sidebar">
+    <div className="sidebar" style={{ position: 'relative' }}>
       <div className="sidebar-header">
         <div className="sidebar-title">
           <span className="sidebar-dot">●</span>
@@ -69,10 +81,6 @@ export function Sidebar({
               key={session.id}
               className={`sidebar-item ${session.id === activeSessionId ? 'sidebar-item-active' : ''}`}
               onClick={() => onSelect(session.id)}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                onClose(session.id)
-              }}
             >
               <div className="sidebar-item-indicator">
                 {session.id === activeSessionId && <span className="active-dot">●</span>}
@@ -93,23 +101,36 @@ export function Sidebar({
                     onClick={e => e.stopPropagation()}
                   />
                 ) : (
-                  <div
-                    className="sidebar-item-name"
-                    onDoubleClick={(e) => {
-                      e.stopPropagation()
-                      startRename(session.id, session.name)
-                    }}
-                  >
+                  <div className="sidebar-item-name">
                     {session.name}
                   </div>
                 )}
                 <div className="sidebar-item-preview">{getPreview(session)}</div>
               </div>
-              <div className="sidebar-item-time">// {timeAgo}</div>
+              <div className="sidebar-item-meta">
+                <div className="sidebar-item-time">// {timeAgo}</div>
+                <div className="sidebar-item-actions">
+                  <button
+                    className="sidebar-action-btn sidebar-action-edit"
+                    onClick={(e) => { e.stopPropagation(); startRename(session.id, session.name) }}
+                    title="Rename"
+                  >
+                    ✏
+                  </button>
+                  <button
+                    className={`sidebar-action-btn sidebar-action-delete ${confirmDeleteId === session.id ? 'confirm' : ''}`}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(session.id) }}
+                    title={confirmDeleteId === session.id ? 'Click again to confirm' : 'Delete'}
+                  >
+                    {confirmDeleteId === session.id ? '✕' : '🗑'}
+                  </button>
+                </div>
+              </div>
             </div>
           )
         })}
       </div>
+
     </div>
   )
 }

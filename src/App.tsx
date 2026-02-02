@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar'
 import { ChatPanel } from './components/ChatPanel'
 import { TopBar } from './components/TopBar'
 import { BottomBar } from './components/BottomBar'
+import { OpsPanel } from './components/OpsPanel'
 import type { Session, Message, SystemStatus } from './types'
 import { Gateway } from './gateway'
 import type { ConnectionStatus } from './gateway'
@@ -18,6 +19,12 @@ function extractContent(raw: any): string {
     return raw.filter((c: any) => c.type === 'text').map((c: any) => c.text ?? '').join('')
   }
   return String(raw ?? '')
+}
+
+const OPS_PATTERNS = [/subagent/i, /sub-agent/i, /isolated/i, /cron/i, /heartbeat/i, /background/i, /worker/i, /spawned/i]
+
+function isOpsSession(session: { id: string; name: string }): boolean {
+  return OPS_PATTERNS.some(p => p.test(session.name) || p.test(session.id))
 }
 
 function getConfigFromUrl() {
@@ -265,10 +272,13 @@ function App() {
       }
       return filtered
     })
+    // Also delete from gateway
+    gwRef.current?.deleteSession(id).catch(() => {})
   }, [activeSessionId])
 
   const renameSession = useCallback((id: string, name: string) => {
     setSessions(prev => prev.map(s => s.id === id ? { ...s, name } : s))
+    gwRef.current?.renameSession(id, name).catch(() => {})
   }, [])
 
   const addMessage = useCallback((sessionId: string, message: Message) => {
@@ -301,12 +311,19 @@ function App() {
     return `${Math.floor(hrs / 24)}d`
   }
 
+  const chatSessions = sessions.filter(s => !isOpsSession(s))
+  const opsSessions = sessions.filter(s => isOpsSession(s))
+
+  const visibleSessions = activeTab === 'chat' ? chatSessions : opsSessions
+
   const filteredSessions = searchQuery
-    ? sessions.filter(s =>
+    ? visibleSessions.filter(s =>
         s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.messages.some(m => m.content.toLowerCase().includes(searchQuery.toLowerCase()))
       )
-    : sessions
+    : visibleSessions
+
+  const { url: gatewayUrl } = getConfigFromUrl()
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -410,27 +427,44 @@ function App() {
         status={status}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        chatCount={chatSessions.length}
+        opsCount={opsSessions.length}
       />
       <div className="main-content">
-        <Sidebar
-          sessions={filteredSessions}
-          activeSessionId={activeSessionId}
-          onSelect={selectSession}
-          onCreate={createSession}
-          onClose={closeSession}
-          onRename={renameSession}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          getPreview={getPreview}
-          getTimeAgo={getTimeAgo}
-          sessionCount={sessions.length}
-        />
-        <ChatPanel
-          session={activeSession}
-          onSendMessage={handleSendMessage}
-          onRename={(name) => renameSession(activeSession.id, name)}
-          onAbort={activeSession?.isTyping ? handleAbort : undefined}
-        />
+        {activeTab === 'ops' ? (
+          <OpsPanel
+            sessions={opsSessions}
+            allSessions={sessions}
+            connStatus={connStatus}
+            gatewayUrl={gatewayUrl}
+            onSelectSession={(id) => {
+              setActiveTab('chat')
+              selectSession(id)
+            }}
+          />
+        ) : (
+          <>
+            <Sidebar
+              sessions={filteredSessions}
+              activeSessionId={activeSessionId}
+              onSelect={selectSession}
+              onCreate={createSession}
+              onClose={closeSession}
+              onRename={renameSession}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              getPreview={getPreview}
+              getTimeAgo={getTimeAgo}
+              sessionCount={chatSessions.length}
+            />
+            <ChatPanel
+              session={activeSession}
+              onSendMessage={handleSendMessage}
+              onRename={(name) => renameSession(activeSession.id, name)}
+              onAbort={activeSession?.isTyping ? handleAbort : undefined}
+            />
+          </>
+        )}
       </div>
       <BottomBar sessionCount={sessions.length} />
     </div>
