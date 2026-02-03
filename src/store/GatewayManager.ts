@@ -37,14 +37,37 @@ export class GatewayManager {
     }
 
     const storedGateways = await getAllGateways()
-    for (const config of storedGateways) {
+    for (let i = 0; i < storedGateways.length; i++) {
+      const config = storedGateways[i]
       // Reset status to disconnected on load
       config.status = 'disconnected'
+      
+      // Fix gateway names that look like IP addresses or URLs (migration)
+      if (this.isUrlOrIpName(config.name)) {
+        config.name = `Agent ${i + 1}`
+        // Persist the fixed name
+        saveGateway(config).catch(console.error)
+      }
+      
       this.configs.set(config.id, config)
     }
 
     this.initialized = true
     return storedGateways
+  }
+
+  /**
+   * Check if a name looks like an IP address or URL (bad name that should be fixed)
+   */
+  private isUrlOrIpName(name: string): boolean {
+    // IP address pattern: matches 192.168.1.1 etc.
+    const ipPattern = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/
+    // URL pattern: matches ws://, wss://, http://, https://
+    const urlPattern = /^(wss?|https?):\/\//i
+    // Hostname:port pattern without protocol
+    const hostPortPattern = /^[\w.-]+:\d+$/
+    
+    return ipPattern.test(name) || urlPattern.test(name) || hostPortPattern.test(name)
   }
 
   /**

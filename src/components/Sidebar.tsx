@@ -69,7 +69,6 @@ export function Sidebar({
 
       <button className="sidebar-new" onClick={onCreate}>
         + NEW TRANSMISSION
-        <span className="sidebar-new-count">({sessionCount})</span>
       </button>
 
       <div className="sidebar-search">

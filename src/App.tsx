@@ -1050,7 +1050,7 @@ function App() {
               onSearchChange={setSearchQuery}
               getPreview={getPreview}
               getTimeAgo={getTimeAgo}
-              sessionCount={chatSessions.length}
+              sessionCount={filteredSessions.length}
               splitSessionId={isSplit ? splitRightSessionId : undefined}
               gateways={gatewayConfigs}
             />
