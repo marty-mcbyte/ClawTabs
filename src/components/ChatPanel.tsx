@@ -4,7 +4,8 @@ import remarkGfm from 'remark-gfm'
 import type { Session } from '../types'
 
 // Compress images to avoid WebSocket 1009 (message too big) errors
-async function compressImage(file: File, maxDimension = 1920, quality = 0.8): Promise<{ dataUrl: string; mimeType: string }> {
+// Gateway limit is 512KB, so we need aggressive compression
+async function compressImage(file: File, maxDimension = 1280, quality = 0.5): Promise<{ dataUrl: string; mimeType: string }> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => {
