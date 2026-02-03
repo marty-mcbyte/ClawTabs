@@ -52,13 +52,28 @@ export function AgentSidebar({
   // Count chat sessions per gateway (excludes ops/subagent sessions)
   const sessionCounts = useMemo(() => {
     const counts: Record<string, number> = {}
+    let unassigned = 0
     for (const session of sessions) {
-      if (session.gatewayId && !isOpsSession(session)) {
+      if (isOpsSession(session)) continue
+      if (session.gatewayId) {
         counts[session.gatewayId] = (counts[session.gatewayId] || 0) + 1
+      } else {
+        unassigned++
+      }
+    }
+    // If there are unassigned sessions and only one gateway, assign them to it
+    if (unassigned > 0 && gateways.length === 1) {
+      counts[gateways[0].id] = (counts[gateways[0].id] || 0) + unassigned
+    }
+    // If multiple gateways, assign unassigned to the first connected one
+    else if (unassigned > 0) {
+      const firstConnected = gateways.find(g => g.status === 'connected')
+      if (firstConnected) {
+        counts[firstConnected.id] = (counts[firstConnected.id] || 0) + unassigned
       }
     }
     return counts
-  }, [sessions])
+  }, [sessions, gateways])
   
   // Total chat sessions (for "All Agents" count)
   const totalChatSessions = useMemo(() => {
