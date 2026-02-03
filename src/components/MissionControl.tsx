@@ -28,6 +28,7 @@ interface MissionControlProps {
   onCreateTask: () => void
   onSelectAgent: (id: string | null) => void
   selectedAgentId: string | null
+  onImportTasks?: (tasks: Task[]) => Promise<void>
 }
 
 interface ColumnConfig {
@@ -107,9 +108,45 @@ export function MissionControl({
   onEditTask,
   onCreateTask,
   onSelectAgent,
-  selectedAgentId
+  selectedAgentId,
+  onImportTasks
 }: MissionControlProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null)
+  const [showMenu, setShowMenu] = useState(false)
+  
+  const handleExport = () => {
+    const data = JSON.stringify(tasks, null, 2)
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `clawtabs-tasks-${new Date().toISOString().split('T')[0]}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    setShowMenu(false)
+  }
+  
+  const handleImport = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      try {
+        const text = await file.text()
+        const imported = JSON.parse(text) as Task[]
+        if (Array.isArray(imported) && onImportTasks) {
+          await onImportTasks(imported)
+        }
+      } catch (err) {
+        console.error('Failed to import tasks:', err)
+        alert('Invalid JSON file')
+      }
+    }
+    input.click()
+    setShowMenu(false)
+  }
   
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -188,6 +225,17 @@ export function MissionControl({
         <button className="mc-new-task" onClick={onCreateTask}>
           + NEW TASK
         </button>
+        <div className="mc-menu-container">
+          <button className="mc-menu-btn" onClick={() => setShowMenu(!showMenu)}>
+            ⋮
+          </button>
+          {showMenu && (
+            <div className="mc-menu">
+              <button onClick={handleExport}>📤 Export Tasks</button>
+              <button onClick={handleImport}>📥 Import Tasks</button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main 3-panel layout */}

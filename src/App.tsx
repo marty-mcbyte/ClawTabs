@@ -1049,6 +1049,16 @@ function App() {
     setTasks(prev => prev.filter(t => t.id !== id))
   }, [])
 
+  const handleImportTasks = useCallback(async (importedTasks: Task[]) => {
+    // Merge imported tasks - update existing, add new
+    for (const task of importedTasks) {
+      await saveTask(task)
+    }
+    // Reload all tasks
+    const allTasks = await getAllTasks()
+    setTasks(allTasks)
+  }, [])
+
   const activeChannel = channels.find(c => c.id === activeChannelId)
   const activeChannelMessages = activeChannelId ? (channelMessages.get(activeChannelId) || []) : []
 
@@ -1135,6 +1145,7 @@ function App() {
             onCreateTask={() => setTaskModalOpen(true)}
             onSelectAgent={setSelectedGatewayId}
             selectedAgentId={selectedGatewayId}
+            onImportTasks={handleImportTasks}
           />
         ) : viewMode === 'channels' ? (
           <>
