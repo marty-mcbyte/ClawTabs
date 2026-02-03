@@ -6,6 +6,7 @@ interface ChannelSidebarProps {
   channels: Channel[]
   activeChannelId: string | null
   gateways: GatewayConfig[]
+  unreadCounts?: Map<string, number>
   onSelect: (id: string) => void
   onCreate: () => void
   onDelete: (id: string) => void
@@ -16,6 +17,7 @@ export function ChannelSidebar({
   channels,
   activeChannelId,
   gateways,
+  unreadCounts = new Map(),
   onSelect,
   onCreate,
   onDelete,
@@ -62,17 +64,21 @@ export function ChannelSidebar({
             const connectedMembers = channel.memberAgentIds.filter(id => 
               gateways.find(g => g.id === id)?.status === 'connected'
             ).length
+            const unreadCount = unreadCounts.get(channel.id) || 0
 
             return (
               <div
                 key={channel.id}
-                className={`channel-item ${activeChannelId === channel.id ? 'channel-item-active' : ''}`}
+                className={`channel-item ${activeChannelId === channel.id ? 'channel-item-active' : ''} ${unreadCount > 0 ? 'channel-item-unread' : ''}`}
                 onClick={() => onSelect(channel.id)}
               >
                 <div className="channel-item-info">
                   <div className="channel-item-name">
                     <span className="channel-item-hash">#</span>
                     {channel.name}
+                    {unreadCount > 0 && (
+                      <span className="channel-unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                    )}
                   </div>
                   <div className="channel-item-meta">
                     {connectedMembers}/{memberCount} agents online

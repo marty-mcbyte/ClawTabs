@@ -146,3 +146,25 @@
   color: var(--error, #ff6b6b);
   background: rgba(255, 107, 107, 0.1);
 }
+
+/* Unread state */
+.channel-item-unread .channel-item-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.channel-item-unread .channel-item-hash {
+  color: var(--accent);
+}
+
+.channel-unread-badge {
+  background: var(--accent);
+  color: var(--bg-primary);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 8px;
+  min-width: 18px;
+  text-align: center;
+}

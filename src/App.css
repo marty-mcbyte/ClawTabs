@@ -1319,3 +1319,23 @@ body {
 .bottom-toggle-icon {
   font-size: 10px;
 }
+
+.bottom-toggle.has-unread {
+  border-color: var(--accent);
+  animation: pulse-border 2s infinite;
+}
+
+.bottom-unread-badge {
+  background: var(--accent);
+  color: var(--bg-primary);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  margin-left: 6px;
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: var(--accent); }
+  50% { border-color: var(--border); }
+}

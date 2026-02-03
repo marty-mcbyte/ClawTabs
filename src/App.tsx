@@ -127,6 +127,12 @@ function App() {
   const channelContextRef = useRef<Map<string, { channelId: string; timestamp: number }>>(new Map())
   // Track which agents are currently typing in channels
   const [channelTypingAgents, setChannelTypingAgents] = useState<Map<string, Set<string>>>(new Map())
+  // Track unread counts per channel (messages since last viewed)
+  const [channelUnreadCounts, setChannelUnreadCounts] = useState<Map<string, number>>(new Map())
+  // Track last read timestamp per channel
+  const channelLastReadRef = useRef<Map<string, number>>(new Map())
+  // Ref to track current active channel (for unread tracking in event handlers)
+  const activeChannelIdRef = useRef<string | null>(null)
 
   const status: SystemStatus = {
     connected: connStatus === 'connected',
@@ -143,6 +149,22 @@ function App() {
       localStorage.setItem('clawtabs-split-ratio', String(splitRatio))
     } catch {}
   }, [isSplit, splitRightSessionId, splitRatio])
+
+  // Sync active channel ref and clear unreads when switching channels
+  useEffect(() => {
+    activeChannelIdRef.current = activeChannelId
+    if (activeChannelId) {
+      // Clear unread for this channel
+      setChannelUnreadCounts(prev => {
+        if (!prev.has(activeChannelId)) return prev
+        const next = new Map(prev)
+        next.delete(activeChannelId)
+        return next
+      })
+      // Update last read timestamp
+      channelLastReadRef.current.set(activeChannelId, Date.now())
+    }
+  }, [activeChannelId])
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0]
   const splitRightSession = sessions.find(s => s.id === splitRightSessionId)
@@ -177,6 +199,16 @@ function App() {
             next.set(ctx.channelId, [...existing, channelMsg])
             return next
           })
+          
+          // Increment unread if not viewing this channel
+          if (activeChannelIdRef.current !== ctx.channelId) {
+            setChannelUnreadCounts(prev => {
+              const next = new Map(prev)
+              next.set(ctx.channelId, (prev.get(ctx.channelId) || 0) + 1)
+              return next
+            })
+          }
+          
           // Clear context after response
           channelContextRef.current.delete(agentId)
           return true
@@ -916,6 +948,7 @@ function App() {
               channels={channels}
               activeChannelId={activeChannelId}
               gateways={gatewayConfigs}
+              unreadCounts={channelUnreadCounts}
               onSelect={setActiveChannelId}
               onCreate={() => setChannelModalOpen(true)}
               onDelete={handleDeleteChannel}
@@ -1002,6 +1035,7 @@ function App() {
       <BottomBar 
         sessionCount={sessions.length} 
         channelCount={channels.length}
+        totalUnread={Array.from(channelUnreadCounts.values()).reduce((a, b) => a + b, 0)}
         viewMode={viewMode}
         onToggleView={() => setViewMode(v => v === 'sessions' ? 'channels' : 'sessions')}
       />
