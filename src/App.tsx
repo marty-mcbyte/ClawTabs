@@ -133,6 +133,28 @@ function App() {
   const channelLastReadRef = useRef<Map<string, number>>(new Map())
   // Ref to track current active channel (for unread tracking in event handlers)
   const activeChannelIdRef = useRef<string | null>(null)
+  // Track if browser notifications are enabled
+  const notificationsEnabledRef = useRef(false)
+  // Refs for notification data (to avoid stale closures)
+  const gatewayConfigsRef = useRef<GatewayConfig[]>([])
+  const channelsRef = useRef<Channel[]>([])
+  
+  // Keep refs in sync
+  useEffect(() => { gatewayConfigsRef.current = gatewayConfigs }, [gatewayConfigs])
+  useEffect(() => { channelsRef.current = channels }, [channels])
+  
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        notificationsEnabledRef.current = true
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          notificationsEnabledRef.current = permission === 'granted'
+        })
+      }
+    }
+  }, [])
 
   const status: SystemStatus = {
     connected: connStatus === 'connected',
@@ -207,6 +229,17 @@ function App() {
               next.set(ctx.channelId, (prev.get(ctx.channelId) || 0) + 1)
               return next
             })
+            
+            // Send browser notification if window not focused
+            if (notificationsEnabledRef.current && document.hidden) {
+              const agentName = gatewayConfigsRef.current.find(g => g.id === agentId)?.name || 'Agent'
+              const channelName = channelsRef.current.find(c => c.id === ctx.channelId)?.name || 'channel'
+              new Notification(`#${channelName}`, {
+                body: `${agentName}: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`,
+                icon: '/favicon.png',
+                tag: `channel-${ctx.channelId}` // Replace previous notification from same channel
+              })
+            }
           }
           
           // Clear context after response
