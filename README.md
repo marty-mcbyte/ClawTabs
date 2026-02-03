@@ -22,6 +22,18 @@
   <img src="docs/screenshot.png" alt="ClawTabs in action — cyberpunk terminal chat UI" width="900" />
 </p>
 
+<p align="center">
+  <em>Multi-session chat with real-time streaming</em>
+</p>
+
+<p align="center">
+  <img src="docs/ops-panel.png" alt="OPS Dashboard — monitor sub-agents, sessions, and system status" width="900" />
+</p>
+
+<p align="center">
+  <em>OPS Dashboard — monitor all sessions, sub-agents, and system status at a glance</em>
+</p>
+
 <!-- 🎬 GIF PLACEHOLDER: Record a ~15s GIF showing tab creation, message send, and sidebar search.
      Tools: LICEcap, ShareX, or `ffmpeg -i screen.mp4 -vf "fps=12,scale=900:-1" docs/demo.gif`
      Replace this comment with: ![ClawTabs Demo](docs/demo.gif) -->
