@@ -117,7 +117,9 @@ export class Gateway {
       }
       const id = String(++this.reqId)
       this.pending.set(id, { resolve, reject })
-      this.ws.send(JSON.stringify({ type: 'req', id, method, params }))
+      const msg = { type: 'req', id, method, params }
+      console.log('[GW] Sending:', method, params.attachments ? `(${params.attachments.length} attachments)` : '')
+      this.ws.send(JSON.stringify(msg))
     })
   }
 
@@ -152,11 +154,25 @@ export class Gateway {
   }
 
   async chatSend(sessionKey: string, text: string, attachments?: any[]): Promise<any> {
+    // Transform attachments to gateway format: { content: base64, mimeType }
+    const gatewayAttachments = attachments?.map(att => {
+      let content = att.dataUrl || att.content || ''
+      // Strip data URL prefix if present
+      const match = /^data:[^;]+;base64,(.*)$/.exec(content)
+      if (match) {
+        content = match[1]
+      }
+      return {
+        content,
+        mimeType: att.mimeType
+      }
+    })
+
     return this.request('chat.send', {
       sessionKey,
       message: text,
       idempotencyKey: this.genIdempotencyKey(),
-      ...(attachments?.length ? { attachments } : {})
+      ...(gatewayAttachments?.length ? { attachments: gatewayAttachments } : {})
     })
   }
 

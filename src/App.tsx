@@ -326,8 +326,10 @@ function App() {
   }, [sessions, loadHistory])
 
   const createSession = useCallback(() => {
+    const shortId = generateId()
+    const sessionKey = `agent:main:${shortId}`
     const newSession: Session = {
-      id: generateId(),
+      id: sessionKey,
       name: `Transmission ${sessions.length + 1}`,
       messages: [],
       isActive: true,
@@ -482,8 +484,10 @@ function App() {
 
     gw.chatSend(sessionId, text, attachments)
       .then((ack: any) => { if (ack?.runId) setCurrentRunId(ack.runId) })
-      .catch(() => {
-        addMessage(sessionId, { id: generateId(), role: 'system', content: '⚠ Failed to send message to gateway.', timestamp: Date.now() })
+      .catch((err: any) => {
+        const errMsg = typeof err === 'string' ? err : (err?.message || err?.error || JSON.stringify(err))
+        console.error('[ClawTabs] chat.send failed:', err)
+        addMessage(sessionId, { id: generateId(), role: 'system', content: `⚠ Failed to send message to gateway: ${errMsg}`, timestamp: Date.now() })
         setTyping(sessionId, false)
       })
   }, [addMessage, setTyping, connStatus])
