@@ -4,6 +4,7 @@ import { ChatPanel } from './components/ChatPanel'
 import { TopBar } from './components/TopBar'
 import { BottomBar } from './components/BottomBar'
 import { OpsPanel } from './components/OpsPanel'
+import { LandingPage } from './components/LandingPage'
 import type { Session, Message, SystemStatus } from './types'
 import { Gateway } from './gateway'
 import type { ConnectionStatus } from './gateway'
@@ -29,9 +30,11 @@ function isOpsSession(session: { id: string; name: string }): boolean {
 
 function getConfigFromUrl() {
   const params = new URLSearchParams(window.location.search)
+  const hasExplicitGateway = params.has('gateway') || params.has('token')
   return {
     token: params.get('token') || 'eae9203476a753ae79acfb39e0e85fbc81ff667a3e667bb4',
     url: params.get('gateway') || `ws://${window.location.hostname}:18789`,
+    hasExplicitGateway,
   }
 }
 
@@ -42,6 +45,8 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [connStatus, setConnStatus] = useState<ConnectionStatus>('disconnected')
   const [currentRunId, setCurrentRunId] = useState<string | null>(null)
+  const [showLanding, setShowLanding] = useState(false)
+  const failCountRef = useRef(0)
   const gwRef = useRef<Gateway | null>(null)
   // Track streaming content per session
   const streamingRef = useRef<Map<string, { msgId: string; content: string }>>(new Map())
@@ -57,13 +62,23 @@ function App() {
 
   // Initialize gateway
   useEffect(() => {
-    const { url, token } = getConfigFromUrl()
+    const { url, token, hasExplicitGateway } = getConfigFromUrl()
     const gw = new Gateway(url, token)
     gwRef.current = gw
 
     gw.setHandlers({
       onConnectionChange: (s) => {
         setConnStatus(s)
+        if (s === 'connected') {
+          failCountRef.current = 0
+          setShowLanding(false)
+        } else if (s === 'disconnected' && !hasExplicitGateway) {
+          failCountRef.current++
+          // Show landing after 2 failed attempts (first connect + first reconnect)
+          if (failCountRef.current >= 2) {
+            setShowLanding(true)
+          }
+        }
       },
       onChatEvent: (payload: any, eventType: string) => {
         const sessionKey = payload?.sessionKey
@@ -405,6 +420,10 @@ function App() {
     streamingRef.current.delete(activeSession.id)
     setCurrentRunId(null)
   }, [activeSession, currentRunId, setTyping])
+
+  if (showLanding) {
+    return <LandingPage />
+  }
 
   if (sessions.length === 0) {
     // Still loading
