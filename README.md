@@ -5,8 +5,8 @@
 <h1 align="center">⚡ ClawTabs</h1>
 
 <p align="center">
-  <strong>A cyberpunk terminal-style chat UI for AI agents.</strong><br/>
-  Multi-session. Local-first. Browser-based. Beautifully dystopian.
+  <strong>A multi-agent command hub for AI coordination.</strong><br/>
+  Connect multiple OpenClaw agents. Coordinate via channels. All local-first.
 </p>
 
 <p align="center">
@@ -18,25 +18,29 @@
 
 ---
 
-<p align="center">
-  <img src="docs/screenshot.png" alt="ClawTabs in action — cyberpunk terminal chat UI" width="900" />
-</p>
+## 🎯 What is ClawTabs?
 
-<p align="center">
-  <em>Multi-session chat with real-time streaming</em>
-</p>
+ClawTabs is a **command hub** for coordinating multiple AI agents. Think Slack, but for your AI workforce.
 
-<p align="center">
-  <img src="docs/ops-panel.png" alt="OPS Dashboard — monitor sub-agents, sessions, and system status" width="900" />
-</p>
+- **Connect** multiple OpenClaw gateways (each gateway = one agent)
+- **Coordinate** agents via channels — broadcast messages, get responses
+- **Monitor** all sessions and agent activity in one place
+- **100% local** — no servers, no accounts, just your browser
 
-<p align="center">
-  <em>OPS Dashboard — monitor all sessions, sub-agents, and system status at a glance</em>
-</p>
-
-<!-- 🎬 GIF PLACEHOLDER: Record a ~15s GIF showing tab creation, message send, and sidebar search.
-     Tools: LICEcap, ShareX, or `ffmpeg -i screen.mp4 -vf "fps=12,scale=900:-1" docs/demo.gif`
-     Replace this comment with: ![ClawTabs Demo](docs/demo.gif) -->
+```
+┌─────────────────────────────────────────────────────┐
+│                    ClawTabs                         │
+├──────────┬──────────────────────────────────────────┤
+│ Agents   │  #coordination channel                   │
+│ ● Marty  │  ──────────────────────────             │
+│ ● Agent2 │  You: What's the status?                │
+│ ● Agent3 │  Marty: All systems nominal.            │
+│          │  Agent2: Processing queue is clear.     │
+│ Channels │  Agent3: Ready for new tasks.           │
+│ # coord  │                                          │
+│ # tasks  │  [Type a message...]                    │
+└──────────┴──────────────────────────────────────────┘
+```
 
 ---
 
@@ -46,32 +50,57 @@
 git clone https://github.com/marty-mcbyte/ClawTabs.git
 cd ClawTabs
 npm install
-npm run build
-npx serve dist -p 8088
+npm run dev
 ```
 
-Open **http://localhost:8088** → you're in.
+Open **http://localhost:5173** and add your first gateway.
 
-### Development
+### Connect to OpenClaw
 
-```bash
-npm run dev    # Vite dev server with hot reload
-```
+1. Click the ⚙ gear icon (Gateway Settings)
+2. Enter your OpenClaw gateway URL (e.g., `ws://localhost:18789`)
+3. Enter your gateway token
+4. Click "Test" then "Add Gateway"
 
 ---
 
 ## ✨ Features
 
-| | |
-|---|---|
-| 🗂️ **Multi-session tabs** | Run parallel conversations — switch with `Ctrl+Tab` |
-| 📡 **Transmission sidebar** | Browse, search, and manage all sessions at a glance |
-| 🌃 **Cyberpunk terminal aesthetic** | Dark theme, scanline overlay, green-on-black, JetBrains Mono |
-| 📝 **Full markdown rendering** | Code blocks, tables, inline code — all styled |
-| ⌨️ **Keyboard-first** | `Ctrl+N` new · `Ctrl+W` close · `Ctrl+1-9` jump |
-| 📊 **OPS panel** | System monitoring tab with connection status |
-| 🔒 **100% local** | No cloud, no tracking, no external dependencies |
-| ⚡ **Blazing fast** | React 19 + Vite — sub-second builds |
+### Multi-Agent Command Hub
+
+| Feature | Description |
+|---------|-------------|
+| 🔌 **Multi-Gateway** | Connect to unlimited OpenClaw instances simultaneously |
+| 👥 **Agent Sidebar** | See all agents with presence indicators (online/busy/offline) |
+| 🎨 **Color-Coded** | Each agent gets a unique color throughout the UI |
+| 📊 **Session Routing** | Sessions automatically route to the correct agent |
+
+### Channel Coordination
+
+| Feature | Description |
+|---------|-------------|
+| 📢 **Channels** | Create Slack-style channels for multi-agent coordination |
+| 🎯 **@mentions** | Target specific agents with `@AgentName message` |
+| 💬 **Responses** | Agent responses automatically appear in the channel |
+| ⌨️ **Typing** | See which agents are typing in real-time |
+| 🔔 **Unread** | Badge counts for unread messages per channel |
+| 🔊 **Notifications** | Browser notifications when tab is not focused |
+
+### Session Management
+
+| Feature | Description |
+|---------|-------------|
+| 🗂️ **Multi-Session** | Parallel conversations with any agent |
+| 🔀 **Split View** | View two sessions side-by-side (`Ctrl+\`) |
+| 🔍 **Search** | Search across all sessions |
+| 📊 **OPS Panel** | Monitor sub-agents and background sessions |
+
+### Local-First
+
+- **IndexedDB Storage** — Gateways, channels, messages all persist locally
+- **No Accounts** — Just open the page and start using
+- **No Server** — ClawTabs is just a static site
+- **Export/Import** — (Coming soon) Backup and restore your data
 
 ---
 
@@ -79,8 +108,10 @@ npm run dev    # Vite dev server with hot reload
 
 | Shortcut | Action |
 |----------|--------|
+| `Ctrl+K` | Command palette |
 | `Ctrl+N` | New session |
 | `Ctrl+W` | Close current session |
+| `Ctrl+\` | Toggle split view |
 | `Ctrl+Tab` | Next session |
 | `Ctrl+Shift+Tab` | Previous session |
 | `Ctrl+1-9` | Jump to session by number |
@@ -89,23 +120,55 @@ npm run dev    # Vite dev server with hot reload
 
 ---
 
+## 🏗️ Architecture
+
+```
+┌────────────────────────────────────────────────────────┐
+│                      ClawTabs                          │
+│                   (Browser App)                        │
+├────────────────────────────────────────────────────────┤
+│  IndexedDB                                             │
+│  ├── gateways (connection configs)                     │
+│  ├── channels (workspaces)                            │
+│  └── messages (channel history)                       │
+├────────────────────────────────────────────────────────┤
+│  GatewayManager                                        │
+│  ├── WebSocket connections to N gateways              │
+│  ├── Event routing (chat events → channels)           │
+│  └── Session management per gateway                   │
+└────────────────────────────────────────────────────────┘
+        │           │           │
+        ▼           ▼           ▼
+   Gateway A   Gateway B   Gateway C
+   (Agent 1)   (Agent 2)   (Agent 3)
+```
+
+---
+
 ## 🛠️ Tech Stack
 
 - **React 19** + TypeScript
 - **Vite 7** — instant HMR
-- **react-markdown** + remark-gfm + rehype-highlight
+- **IndexedDB** — local persistence
+- **WebSocket** — real-time gateway communication
 - **JetBrains Mono** — the only acceptable monospace font
 
 ---
 
 ## 🗺️ Roadmap
 
-- [ ] Wire up to [OpenClaw](https://github.com/openclaw/openclaw) gateway WebSocket
-- [ ] Session persistence (localStorage / file-based)
-- [ ] Drag-to-reorder sessions
-- [ ] Export/import sessions as markdown/JSON
-- [ ] Search across all session histories
-- [ ] OPS tab with live system monitoring
+- [x] Multi-gateway connections
+- [x] Agent presence indicators
+- [x] Channel system with multi-agent coordination
+- [x] @mention targeting
+- [x] Response routing to channels
+- [x] Typing indicators
+- [x] Unread counts and notifications
+- [ ] Task handoff workflows ("pass to Agent B when done")
+- [ ] Export/import configuration
+- [ ] Channel history pagination
+- [ ] Audio notifications (optional)
+- [ ] Mobile-responsive layout
 
 ---
 
