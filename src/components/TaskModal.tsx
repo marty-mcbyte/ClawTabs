@@ -64,13 +64,24 @@ export function TaskModal({
     if (!title.trim()) return
     setSaving(true)
 
+    // Determine status based on assignment
+    const hasAssignment = assignedAgentId && assignedAgentId.length > 0
+    const taskStatus = editingTask?.status || (hasAssignment ? 'assigned' : 'inbox')
+    
+    console.log('[TaskModal] Creating task:', { 
+      title: title.trim(), 
+      assignedAgentId, 
+      hasAssignment, 
+      taskStatus 
+    })
+
     try {
       const task: Task = {
         id: editingTask?.id || generateId(),
         title: title.trim(),
         description: description.trim() || undefined,
-        status: editingTask?.status || (assignedAgentId ? 'assigned' : 'inbox'),
-        assignedAgentId: assignedAgentId || undefined,
+        status: taskStatus,
+        assignedAgentId: hasAssignment ? assignedAgentId : undefined,
         createdAt: editingTask?.createdAt || Date.now(),
         updatedAt: Date.now(),
         source: editingTask?.source || defaultSource || { type: 'manual', id: '', name: 'Manual' },

@@ -76,7 +76,7 @@ export interface ChannelMessage {
 }
 
 // Activity & Task types (for Live Feed and Mission Control)
-export type ActivityEventType = 'message' | 'task_complete' | 'task_start' | 'error' | 'status_change'
+export type ActivityEventType = 'message' | 'task_complete' | 'task_start' | 'task_update' | 'error' | 'status_change'
 
 export interface ActivityEvent {
   id: string

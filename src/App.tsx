@@ -156,6 +156,10 @@ function App() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
+  // Track which task is active per agent (agentId -> taskId) - for auto-updating status on lifecycle events
+  const activeTaskByAgentRef = useRef<Map<string, string>>(new Map())
+  // Ref to access current tasks in event handlers (avoids stale closures)
+  const tasksRef = useRef<Task[]>([])
   
   // Helper to add activity event (using ref for stable reference in event handlers)
   const addActivityEventRef = useRef<(event: Omit<ActivityEvent, 'id' | 'timestamp'>) => void>(() => {})
@@ -175,6 +179,7 @@ function App() {
   // Keep refs in sync
   useEffect(() => { gatewayConfigsRef.current = gatewayConfigs }, [gatewayConfigs])
   useEffect(() => { channelsRef.current = channels }, [channels])
+  useEffect(() => { tasksRef.current = tasks }, [tasks])
   
   // Request notification permission on mount
   useEffect(() => {
@@ -345,6 +350,28 @@ function App() {
                   next.set(ctx.channelId, agents)
                   return next
                 })
+              }
+              
+              // Auto-update task to in_progress when agent starts working
+              const activeTaskId = activeTaskByAgentRef.current.get(gatewayId)
+              if (activeTaskId) {
+                const task = tasksRef.current.find(t => t.id === activeTaskId)
+                if (task && task.status === 'assigned') {
+                  const updatedTask = { ...task, status: 'in_progress' as const, updatedAt: Date.now() }
+                  saveTask(updatedTask).catch(console.error)
+                  setTasks(prev => prev.map(t => t.id === activeTaskId ? updatedTask : t))
+                  
+                  // Log activity
+                  const agentName = gatewayConfigsRef.current.find(g => g.id === gatewayId)?.name || 'Agent'
+                  addActivityEventRef.current({
+                    agentId: gatewayId,
+                    agentName,
+                    type: 'task_update',
+                    summary: `Started: ${task.title}`,
+                    source: sessionKey
+                  })
+                  console.log('[ClawTabs] Task auto-updated to in_progress:', task.title)
+                }
               }
             }
           } else if (data?.phase === 'end') {
@@ -1097,6 +1124,10 @@ function App() {
       const gateway = manager.getGateway(task.assignedAgentId)
       console.log('[ClawTabs] Task dispatch - gateway found:', !!gateway, 'status:', gateway?.status)
       if (gateway?.status === 'connected') {
+        // Track this task as active for the agent (for auto-status updates)
+        activeTaskByAgentRef.current.set(task.assignedAgentId, task.id)
+        console.log('[ClawTabs] Task tracked for agent:', task.assignedAgentId, '→', task.id)
+        
         const taskMessage = `[TASK #${task.id.slice(-6)}] ${task.title}${task.description ? `\n\n${task.description}` : ''}`
         console.log('[ClawTabs] Task dispatch - sending:', taskMessage.substring(0, 50))
         try {
@@ -1104,6 +1135,8 @@ function App() {
           console.log('[ClawTabs] Task dispatch - sent successfully')
         } catch (err) {
           console.error('[ClawTabs] Failed to send task to agent:', err)
+          // Clear tracking on failure
+          activeTaskByAgentRef.current.delete(task.assignedAgentId)
         }
       } else {
         console.warn('[ClawTabs] Task dispatch - gateway not connected, skipping')
@@ -1132,6 +1165,10 @@ function App() {
       const gateway = manager.getGateway(task.assignedAgentId!)
       console.log('[ClawTabs] Update dispatch - gateway found:', !!gateway, 'status:', gateway?.status)
       if (gateway?.status === 'connected') {
+        // Track this task as active for the agent (for auto-status updates)
+        activeTaskByAgentRef.current.set(task.assignedAgentId!, task.id)
+        console.log('[ClawTabs] Task tracked for agent:', task.assignedAgentId, '→', task.id)
+        
         const taskMessage = `[TASK #${task.id.slice(-6)}] ${task.title}${task.description ? `\n\n${task.description}` : ''}`
         console.log('[ClawTabs] Update dispatch - sending:', taskMessage.substring(0, 50))
         try {
@@ -1147,9 +1184,19 @@ function App() {
           })
         } catch (err) {
           console.error('[ClawTabs] Failed to send task to agent:', err)
+          // Clear tracking on failure
+          activeTaskByAgentRef.current.delete(task.assignedAgentId!)
         }
       } else {
         console.warn('[ClawTabs] Update dispatch - gateway not connected, skipping')
+      }
+    }
+    
+    // Clear task tracking when task moves to done or is unassigned
+    if (task.status === 'done' || !task.assignedAgentId) {
+      if (prevTask?.assignedAgentId) {
+        activeTaskByAgentRef.current.delete(prevTask.assignedAgentId)
+        console.log('[ClawTabs] Task tracking cleared for agent:', prevTask.assignedAgentId)
       }
     }
   }, [tasks, gatewayConfigs])
