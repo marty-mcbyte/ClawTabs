@@ -229,6 +229,46 @@ function App() {
     const manager = gatewayManagerRef.current
     const { url, token, hasExplicitGateway } = getConfigFromUrl()
 
+    // Parse task status updates from agent messages
+    // Patterns: [TASK #abc123 STATUS:in_progress], [TASK #abc123 COMPLETE], [TASK #abc123 DONE]
+    const parseTaskStatusUpdate = (text: string): { taskIdSuffix: string; newStatus: Task['status'] } | null => {
+      // Match patterns like [TASK #abc123 STATUS:in_progress] or [TASK #abc123 COMPLETE]
+      const statusMatch = text.match(/\[TASK #([a-z0-9]+)\s+STATUS:(\w+)\]/i)
+      if (statusMatch) {
+        const statusMap: Record<string, Task['status']> = {
+          'inbox': 'inbox',
+          'assigned': 'assigned',
+          'in_progress': 'in_progress',
+          'active': 'in_progress',
+          'review': 'review',
+          'done': 'done',
+          'complete': 'done',
+          'completed': 'done'
+        }
+        const status = statusMap[statusMatch[2].toLowerCase()]
+        if (status) {
+          return { taskIdSuffix: statusMatch[1], newStatus: status }
+        }
+      }
+      
+      // Match shorthand patterns like [TASK #abc123 COMPLETE] or [TASK #abc123 DONE]
+      const shortMatch = text.match(/\[TASK #([a-z0-9]+)\s+(COMPLETE|DONE|ACTIVE|REVIEW)\]/i)
+      if (shortMatch) {
+        const shortStatusMap: Record<string, Task['status']> = {
+          'complete': 'done',
+          'done': 'done',
+          'active': 'in_progress',
+          'review': 'review'
+        }
+        const status = shortStatusMap[shortMatch[2].toLowerCase()]
+        if (status) {
+          return { taskIdSuffix: shortMatch[1], newStatus: status }
+        }
+      }
+      
+      return null
+    }
+
     // Handler for chat events from any gateway
     const handleChatEvent = (payload: any, eventType: string, gatewayId?: string) => {
       const sessionKey = payload?.sessionKey
@@ -396,6 +436,32 @@ function App() {
               details: text.substring(0, 150) + (text.length > 150 ? '...' : ''),
               source: channelName ? `#${channelName}` : sessionKey
             })
+            
+            // Check for task status updates in agent messages
+            const taskUpdate = parseTaskStatusUpdate(text)
+            if (taskUpdate) {
+              console.log('[ClawTabs] Task status update detected:', taskUpdate)
+              // Find the task by ID suffix
+              setTasks(prev => {
+                const task = prev.find(t => t.id.endsWith(taskUpdate.taskIdSuffix))
+                if (task && task.status !== taskUpdate.newStatus) {
+                  const updatedTask = { ...task, status: taskUpdate.newStatus, updatedAt: Date.now() }
+                  // Persist to IndexedDB
+                  saveTask(updatedTask).catch(console.error)
+                  // Log activity
+                  addActivityEventRef.current({
+                    agentId: gatewayId,
+                    agentName,
+                    type: 'task_update',
+                    summary: `Task "${task.title}" → ${taskUpdate.newStatus.replace('_', ' ').toUpperCase()}`,
+                    source: sessionKey
+                  })
+                  console.log('[ClawTabs] Task updated:', task.title, '→', taskUpdate.newStatus)
+                  return prev.map(t => t.id === task.id ? updatedTask : t)
+                }
+                return prev
+              })
+            }
           }
           
           // Check if this should be routed to a channel
@@ -1027,15 +1093,23 @@ function App() {
     // If task is assigned to an agent, send it to them
     if (task.assignedAgentId && task.status === 'assigned') {
       const manager = gatewayManagerRef.current
+      console.log('[ClawTabs] Task dispatch - looking for gateway:', task.assignedAgentId)
       const gateway = manager.getGateway(task.assignedAgentId)
+      console.log('[ClawTabs] Task dispatch - gateway found:', !!gateway, 'status:', gateway?.status)
       if (gateway?.status === 'connected') {
         const taskMessage = `[TASK #${task.id.slice(-6)}] ${task.title}${task.description ? `\n\n${task.description}` : ''}`
+        console.log('[ClawTabs] Task dispatch - sending:', taskMessage.substring(0, 50))
         try {
           await gateway.chatSend('agent:main', taskMessage)
+          console.log('[ClawTabs] Task dispatch - sent successfully')
         } catch (err) {
           console.error('[ClawTabs] Failed to send task to agent:', err)
         }
+      } else {
+        console.warn('[ClawTabs] Task dispatch - gateway not connected, skipping')
       }
+    } else {
+      console.log('[ClawTabs] Task dispatch - skipped (no agent or not assigned status)', { assignedAgentId: task.assignedAgentId, status: task.status })
     }
   }, [gatewayConfigs])
 
@@ -1051,13 +1125,18 @@ function App() {
       task.assignedAgentId && 
       (prevTask?.status !== 'assigned' || prevTask?.assignedAgentId !== task.assignedAgentId)
     
+    console.log('[ClawTabs] handleUpdateTask - wasJustAssigned:', wasJustAssigned, { status: task.status, assignedAgentId: task.assignedAgentId, prevStatus: prevTask?.status })
     if (wasJustAssigned) {
       const manager = gatewayManagerRef.current
+      console.log('[ClawTabs] Update dispatch - looking for gateway:', task.assignedAgentId)
       const gateway = manager.getGateway(task.assignedAgentId!)
+      console.log('[ClawTabs] Update dispatch - gateway found:', !!gateway, 'status:', gateway?.status)
       if (gateway?.status === 'connected') {
         const taskMessage = `[TASK #${task.id.slice(-6)}] ${task.title}${task.description ? `\n\n${task.description}` : ''}`
+        console.log('[ClawTabs] Update dispatch - sending:', taskMessage.substring(0, 50))
         try {
           await gateway.chatSend('agent:main', taskMessage)
+          console.log('[ClawTabs] Update dispatch - sent successfully')
           // Log activity
           addActivityEventRef.current({
             agentId: task.assignedAgentId!,
@@ -1069,6 +1148,8 @@ function App() {
         } catch (err) {
           console.error('[ClawTabs] Failed to send task to agent:', err)
         }
+      } else {
+        console.warn('[ClawTabs] Update dispatch - gateway not connected, skipping')
       }
     }
   }, [tasks, gatewayConfigs])
