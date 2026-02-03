@@ -8,6 +8,7 @@ import { OpsPanel } from './components/OpsPanel'
 import { LandingPage } from './components/LandingPage'
 import { CommandPalette } from './components/CommandPalette'
 import { GatewaySettings } from './components/GatewaySettings'
+import { AgentSidebar } from './components/AgentSidebar'
 import type { Session, Message, SystemStatus, GatewayConfig } from './types'
 import { Gateway } from './gateway'
 import type { ConnectionStatus } from './gateway'
@@ -101,6 +102,8 @@ function App() {
   const [gatewaySettingsOpen, setGatewaySettingsOpen] = useState(false)
   const [gatewayConfigs, setGatewayConfigs] = useState<GatewayConfig[]>([])
   const gatewayManagerRef = useRef(getGatewayManager())
+  // Agent filter state (null = show all)
+  const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(null)
 
   const status: SystemStatus = {
     connected: connStatus === 'connected',
@@ -410,7 +413,19 @@ function App() {
 
   const createSession = useCallback(() => {
     const manager = gatewayManagerRef.current
-    const firstConnected = manager.getFirstConnected()
+    
+    // Use selected gateway if filtered, otherwise first connected
+    let targetGatewayId: string | undefined
+    if (selectedGatewayId) {
+      const selectedGw = manager.getConfig(selectedGatewayId)
+      if (selectedGw?.status === 'connected') {
+        targetGatewayId = selectedGatewayId
+      }
+    }
+    if (!targetGatewayId) {
+      const firstConnected = manager.getFirstConnected()
+      targetGatewayId = firstConnected?.config.id
+    }
     
     const shortId = generateId()
     const sessionKey = `agent:main:${shortId}`
@@ -420,11 +435,11 @@ function App() {
       messages: [],
       isActive: true,
       createdAt: Date.now(),
-      gatewayId: firstConnected?.config.id // Assign to first connected gateway
+      gatewayId: targetGatewayId
     }
     setSessions(prev => [...prev, newSession])
     setActiveSessionId(newSession.id)
-  }, [sessions.length])
+  }, [sessions.length, selectedGatewayId])
 
   const closeSession = useCallback((id: string) => {
     // Find session to get gatewayId before removing
@@ -494,8 +509,13 @@ function App() {
     return `${Math.floor(hrs / 24)}d`
   }
 
-  const chatSessions = sessions.filter(s => !isOpsSession(s))
-  const opsSessions = sessions.filter(s => isOpsSession(s))
+  // Filter sessions by gateway if selected
+  const gatewayFilteredSessions = selectedGatewayId
+    ? sessions.filter(s => s.gatewayId === selectedGatewayId)
+    : sessions
+
+  const chatSessions = gatewayFilteredSessions.filter(s => !isOpsSession(s))
+  const opsSessions = gatewayFilteredSessions.filter(s => isOpsSession(s))
 
   const visibleSessions = activeTab === 'chat' ? chatSessions : opsSessions
 
@@ -712,6 +732,16 @@ function App() {
           />
         ) : (
           <>
+            {/* Agent sidebar - show when multiple gateways configured */}
+            {gatewayConfigs.length > 1 && (
+              <AgentSidebar
+                gateways={gatewayConfigs}
+                sessions={sessions}
+                selectedGatewayId={selectedGatewayId}
+                onSelectGateway={setSelectedGatewayId}
+                onOpenSettings={() => setGatewaySettingsOpen(true)}
+              />
+            )}
             <Sidebar
               sessions={filteredSessions}
               activeSessionId={activeSessionId}
