@@ -3,6 +3,41 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Session } from '../types'
 
+// Compress images to avoid WebSocket 1009 (message too big) errors
+async function compressImage(file: File, maxDimension = 1920, quality = 0.8): Promise<{ dataUrl: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      let { width, height } = img
+      
+      // Scale down if larger than maxDimension
+      if (width > maxDimension || height > maxDimension) {
+        const ratio = Math.min(maxDimension / width, maxDimension / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'))
+        return
+      }
+      ctx.drawImage(img, 0, 0, width, height)
+      
+      // Convert to JPEG for better compression
+      const dataUrl = canvas.toDataURL('image/jpeg', quality)
+      resolve({ dataUrl, mimeType: 'image/jpeg' })
+      
+      URL.revokeObjectURL(img.src)
+    }
+    img.onerror = () => reject(new Error('Failed to load image'))
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 interface ChatPanelProps {
   session: Session
   onSendMessage: (text: string, attachments?: any[]) => void
@@ -40,7 +75,7 @@ export function ChatPanel({ session, onSendMessage, onRename, onAbort }: ChatPan
     onSendMessage(msgText, attachments)
   }
 
-  const handlePaste = (e: React.ClipboardEvent) => {
+  const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items
     if (!items) return
     for (const item of items) {
@@ -48,11 +83,19 @@ export function ChatPanel({ session, onSendMessage, onRename, onAbort }: ChatPan
         e.preventDefault()
         const file = item.getAsFile()
         if (!file) return
-        const reader = new FileReader()
-        reader.onload = () => {
-          setStagedImage({ dataUrl: reader.result as string, mimeType: file.type })
+        try {
+          // Compress image to avoid WebSocket size limits
+          const compressed = await compressImage(file)
+          setStagedImage(compressed)
+        } catch (err) {
+          console.error('Failed to compress image:', err)
+          // Fallback to raw file
+          const reader = new FileReader()
+          reader.onload = () => {
+            setStagedImage({ dataUrl: reader.result as string, mimeType: file.type })
+          }
+          reader.readAsDataURL(file)
         }
-        reader.readAsDataURL(file)
         return
       }
     }
