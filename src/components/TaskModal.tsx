@@ -64,9 +64,10 @@ export function TaskModal({
     if (!title.trim()) return
     setSaving(true)
 
-    // Determine status based on assignment
+    // New tasks always start in INBOX - assignment is just metadata about who should work on it
+    // Status changes via drag-drop or agent picking up the task
     const hasAssignment = assignedAgentId && assignedAgentId.length > 0
-    const taskStatus = editingTask?.status || (hasAssignment ? 'assigned' : 'inbox')
+    const taskStatus = editingTask?.status || 'inbox'
     
     console.log('[TaskModal] Creating task:', { 
       title: title.trim(), 
@@ -185,7 +186,7 @@ export function TaskModal({
               value={assignedAgentId}
               onChange={(e) => setAssignedAgentId(e.target.value)}
             >
-              <option value="">Unassigned (Inbox)</option>
+              <option value="">No agent assigned</option>
               {connectedGateways.map(gateway => (
                 <option key={gateway.id} value={gateway.id}>
                   {gateway.avatar || '🤖'} {gateway.name}

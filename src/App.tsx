@@ -356,7 +356,8 @@ function App() {
               const activeTaskId = activeTaskByAgentRef.current.get(gatewayId)
               if (activeTaskId) {
                 const task = tasksRef.current.find(t => t.id === activeTaskId)
-                if (task && task.status === 'assigned') {
+                // Move to in_progress if task is inbox or assigned (not already in_progress/review/done)
+                if (task && (task.status === 'inbox' || task.status === 'assigned')) {
                   const updatedTask = { ...task, status: 'in_progress' as const, updatedAt: Date.now() }
                   saveTask(updatedTask).catch(console.error)
                   setTasks(prev => prev.map(t => t.id === activeTaskId ? updatedTask : t))
@@ -1117,34 +1118,100 @@ function App() {
       source: task.source?.name
     })
     
-    // If task is assigned to an agent, send it to them
-    if (task.assignedAgentId && task.status === 'assigned') {
+    // If task is assigned to an agent, notify them
+    if (task.assignedAgentId) {
       const manager = gatewayManagerRef.current
-      console.log('[ClawTabs] Task dispatch - looking for gateway:', task.assignedAgentId)
       const gateway = manager.getGateway(task.assignedAgentId)
-      console.log('[ClawTabs] Task dispatch - gateway found:', !!gateway, 'status:', gateway?.status)
+      const agentName = gatewayConfigs.find(g => g.id === task.assignedAgentId)?.name || 'Agent'
+      
       if (gateway?.status === 'connected') {
-        // Track this task as active for the agent (for auto-status updates)
-        activeTaskByAgentRef.current.set(task.assignedAgentId, task.id)
-        console.log('[ClawTabs] Task tracked for agent:', task.assignedAgentId, '→', task.id)
+        // Find the best session to send to:
+        // 1. If user is currently viewing a session for this agent, use that
+        // 2. Otherwise, use agent:main (the primary session)
+        // 3. Fall back to first available session for this agent
+        const currentSession = sessions.find(s => s.id === activeSessionId)
+        const agentSessions = sessions.filter(s => s.gatewayId === task.assignedAgentId)
         
-        const taskMessage = `[TASK #${task.id.slice(-6)}] ${task.title}${task.description ? `\n\n${task.description}` : ''}`
-        console.log('[ClawTabs] Task dispatch - sending:', taskMessage.substring(0, 50))
+        let targetSessionId: string
+        if (currentSession?.gatewayId === task.assignedAgentId) {
+          // User is viewing a session for this agent - use it
+          targetSessionId = activeSessionId
+        } else {
+          // Find agent:main or first session
+          const mainSession = agentSessions.find(s => s.id === 'agent:main')
+          targetSessionId = mainSession?.id || agentSessions[0]?.id || 'agent:main'
+        }
+        
+        // Track this task as active for the agent
+        activeTaskByAgentRef.current.set(task.assignedAgentId, task.id)
+        
+        // Build task message with clear instructions
+        const taskId = task.id.slice(-6)
+        const priorityEmoji = task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢'
+        const taskMessage = `📋 **New Task Assigned**
+
+**Task:** ${task.title}
+**ID:** #${taskId}
+**Priority:** ${priorityEmoji} ${task.priority || 'medium'}
+${task.tags?.length ? `**Tags:** ${task.tags.join(', ')}` : ''}
+
+${task.description || ''}
+
+---
+Update status with:
+• \`[TASK #${taskId} ACTIVE]\` — when you start
+• \`[TASK #${taskId} DONE]\` — when complete
+• \`[TASK #${taskId} REVIEW]\` — if needs review
+
+Or I can drag the card manually in Kanban.`
+        
+        console.log('[ClawTabs] Task dispatch → session:', targetSessionId, 'agent:', agentName)
+        
         try {
-          await gateway.chatSend('agent:main', taskMessage)
-          console.log('[ClawTabs] Task dispatch - sent successfully')
+          await gateway.chatSend(targetSessionId, taskMessage)
+          console.log('[ClawTabs] Task sent successfully')
+          
+          // Switch view to that session so user sees the conversation
+          if (activeSessionId !== targetSessionId) {
+            setActiveSessionId(targetSessionId)
+          }
+          setViewMode('sessions')
+          
+          // Add success event to live feed
+          addActivityEventRef.current({
+            agentId: task.assignedAgentId,
+            agentName,
+            type: 'task_start',
+            summary: `Task dispatched to ${agentName}`,
+            details: `Sent to session: ${targetSessionId}`,
+            source: 'Task System'
+          })
         } catch (err) {
-          console.error('[ClawTabs] Failed to send task to agent:', err)
-          // Clear tracking on failure
+          console.error('[ClawTabs] Failed to send task:', err)
           activeTaskByAgentRef.current.delete(task.assignedAgentId)
+          
+          // Add error event
+          addActivityEventRef.current({
+            agentId: task.assignedAgentId,
+            agentName,
+            type: 'error',
+            summary: `Failed to dispatch task to ${agentName}`,
+            details: String(err),
+            source: 'Task System'
+          })
         }
       } else {
-        console.warn('[ClawTabs] Task dispatch - gateway not connected, skipping')
+        console.warn('[ClawTabs] Task dispatch skipped - agent not connected')
+        addActivityEventRef.current({
+          agentId: task.assignedAgentId,
+          agentName,
+          type: 'error',
+          summary: `Cannot dispatch task - ${agentName} is offline`,
+          source: 'Task System'
+        })
       }
-    } else {
-      console.log('[ClawTabs] Task dispatch - skipped (no agent or not assigned status)', { assignedAgentId: task.assignedAgentId, status: task.status })
     }
-  }, [gatewayConfigs])
+  }, [gatewayConfigs, sessions, activeSessionId])
 
   const handleUpdateTask = useCallback(async (task: Task) => {
     // Get previous state to detect status transitions
@@ -1158,37 +1225,54 @@ function App() {
       task.assignedAgentId && 
       (prevTask?.status !== 'assigned' || prevTask?.assignedAgentId !== task.assignedAgentId)
     
-    console.log('[ClawTabs] handleUpdateTask - wasJustAssigned:', wasJustAssigned, { status: task.status, assignedAgentId: task.assignedAgentId, prevStatus: prevTask?.status })
+    // Dispatch to agent when task moves to 'assigned' column (drag-drop or edit)
     if (wasJustAssigned) {
       const manager = gatewayManagerRef.current
-      console.log('[ClawTabs] Update dispatch - looking for gateway:', task.assignedAgentId)
       const gateway = manager.getGateway(task.assignedAgentId!)
-      console.log('[ClawTabs] Update dispatch - gateway found:', !!gateway, 'status:', gateway?.status)
+      const agentName = gatewayConfigs.find(g => g.id === task.assignedAgentId)?.name || 'Agent'
+      
       if (gateway?.status === 'connected') {
-        // Track this task as active for the agent (for auto-status updates)
-        activeTaskByAgentRef.current.set(task.assignedAgentId!, task.id)
-        console.log('[ClawTabs] Task tracked for agent:', task.assignedAgentId, '→', task.id)
+        // Find best session (same logic as create)
+        const currentSession = sessions.find(s => s.id === activeSessionId)
+        const agentSessions = sessions.filter(s => s.gatewayId === task.assignedAgentId)
         
-        const taskMessage = `[TASK #${task.id.slice(-6)}] ${task.title}${task.description ? `\n\n${task.description}` : ''}`
-        console.log('[ClawTabs] Update dispatch - sending:', taskMessage.substring(0, 50))
+        let targetSessionId: string
+        if (currentSession?.gatewayId === task.assignedAgentId) {
+          targetSessionId = activeSessionId
+        } else {
+          const mainSession = agentSessions.find(s => s.id === 'agent:main')
+          targetSessionId = mainSession?.id || agentSessions[0]?.id || 'agent:main'
+        }
+        
+        activeTaskByAgentRef.current.set(task.assignedAgentId!, task.id)
+        
+        const taskId = task.id.slice(-6)
+        const priorityEmoji = task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢'
+        const taskMessage = `📋 **Task Assigned to You**
+
+**Task:** ${task.title}
+**ID:** #${taskId}
+**Priority:** ${priorityEmoji} ${task.priority || 'medium'}
+
+${task.description || ''}
+
+---
+Update: \`[TASK #${taskId} ACTIVE]\` / \`[TASK #${taskId} DONE]\``
+        
         try {
-          await gateway.chatSend('agent:main', taskMessage)
-          console.log('[ClawTabs] Update dispatch - sent successfully')
-          // Log activity
+          await gateway.chatSend(targetSessionId, taskMessage)
           addActivityEventRef.current({
             agentId: task.assignedAgentId!,
-            agentName: gatewayConfigs.find(g => g.id === task.assignedAgentId)?.name || 'Agent',
+            agentName,
             type: 'task_start',
             summary: `Task assigned: ${task.title}`,
-            details: task.description
+            details: `Sent to ${targetSessionId}`,
+            source: 'Task System'
           })
         } catch (err) {
-          console.error('[ClawTabs] Failed to send task to agent:', err)
-          // Clear tracking on failure
+          console.error('[ClawTabs] Failed to send task:', err)
           activeTaskByAgentRef.current.delete(task.assignedAgentId!)
         }
-      } else {
-        console.warn('[ClawTabs] Update dispatch - gateway not connected, skipping')
       }
     }
     
@@ -1199,7 +1283,7 @@ function App() {
         console.log('[ClawTabs] Task tracking cleared for agent:', prevTask.assignedAgentId)
       }
     }
-  }, [tasks, gatewayConfigs])
+  }, [tasks, gatewayConfigs, sessions, activeSessionId])
 
   const handleDeleteTask = useCallback(async (id: string) => {
     await deleteTaskDb(id)
