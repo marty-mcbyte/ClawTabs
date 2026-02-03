@@ -127,7 +127,7 @@ export class Gateway {
     return this.request('connect', {
       minProtocol: 3,
       maxProtocol: 3,
-      client: { id: 'webchat', version: '0.2.0', platform: 'web', mode: 'webchat' },
+      client: { id: 'webchat', version: '0.5.0', platform: 'web', mode: 'webchat' },
       role: 'operator',
       scopes: ['operator.read', 'operator.write'],
       caps: [],

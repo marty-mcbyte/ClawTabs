@@ -34,7 +34,7 @@ export function TopBar({
         <span className="top-bar-logo">
           <img src="/mascot.jpg" alt="ClawTabs" className="logo-mascot" />
           <span className="logo-name">CLAWTABS</span>
-          <span className="logo-version">v0.2</span>
+          <span className="logo-version">v0.5</span>
         </span>
         <div className="top-bar-tabs">
           <button
