@@ -9,11 +9,22 @@ import { LandingPage } from './components/LandingPage'
 import { CommandPalette } from './components/CommandPalette'
 import { GatewaySettings } from './components/GatewaySettings'
 import { AgentSidebar } from './components/AgentSidebar'
-import type { Session, Message, SystemStatus, GatewayConfig } from './types'
+import { ChannelSidebar } from './components/ChannelSidebar'
+import { ChannelPanel } from './components/ChannelPanel'
+import { ChannelModal } from './components/ChannelModal'
+import type { Session, Message, SystemStatus, GatewayConfig, Channel, ChannelMessage } from './types'
 import { Gateway } from './gateway'
 import type { ConnectionStatus } from './gateway'
 import { getGatewayManager } from './store/GatewayManager'
-import { generateId as generateDbId, deleteGateway } from './store/db'
+import { 
+  generateId as generateDbId, 
+  deleteGateway,
+  getAllChannels,
+  saveChannel,
+  deleteChannel as deleteChannelDb,
+  getMessagesByChannel,
+  saveMessage as saveChannelMessage
+} from './store/db'
 import './App.css'
 
 function generateId(): string {
@@ -104,6 +115,14 @@ function App() {
   const gatewayManagerRef = useRef(getGatewayManager())
   // Agent filter state (null = show all)
   const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(null)
+  
+  // Channel state
+  const [viewMode, setViewMode] = useState<'sessions' | 'channels'>('sessions')
+  const [channels, setChannels] = useState<Channel[]>([])
+  const [activeChannelId, setActiveChannelId] = useState<string | null>(null)
+  const [channelMessages, setChannelMessages] = useState<Map<string, ChannelMessage[]>>(new Map())
+  const [channelModalOpen, setChannelModalOpen] = useState(false)
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
 
   const status: SystemStatus = {
     connected: connStatus === 'connected',
@@ -282,6 +301,21 @@ function App() {
       unsubscribe()
       manager.disconnectAll()
     }
+  }, [])
+
+  // Load channels from IndexedDB on mount
+  useEffect(() => {
+    getAllChannels().then(storedChannels => {
+      setChannels(storedChannels)
+      // Load messages for each channel
+      for (const channel of storedChannels) {
+        getMessagesByChannel(channel.id).then(msgs => {
+          setChannelMessages(prev => new Map(prev).set(channel.id, msgs))
+        })
+      }
+    }).catch(err => {
+      console.error('[ClawTabs] Failed to load channels:', err)
+    })
   }, [])
 
   // Load sessions from ALL connected gateways
@@ -668,6 +702,83 @@ function App() {
     return manager.testConnection(url, token)
   }, [])
 
+  // Channel handlers
+  const handleCreateChannel = useCallback(async (channel: Channel) => {
+    await saveChannel(channel)
+    setChannels(prev => [...prev, channel])
+    setChannelMessages(prev => new Map(prev).set(channel.id, []))
+    setActiveChannelId(channel.id)
+    setViewMode('channels')
+  }, [])
+
+  const handleUpdateChannel = useCallback(async (channel: Channel) => {
+    await saveChannel(channel)
+    setChannels(prev => prev.map(c => c.id === channel.id ? channel : c))
+  }, [])
+
+  const handleDeleteChannel = useCallback(async (id: string) => {
+    await deleteChannelDb(id)
+    setChannels(prev => prev.filter(c => c.id !== id))
+    setChannelMessages(prev => {
+      const next = new Map(prev)
+      next.delete(id)
+      return next
+    })
+    if (activeChannelId === id) {
+      setActiveChannelId(null)
+    }
+  }, [activeChannelId])
+
+  const handleSendChannelMessage = useCallback(async (channelId: string, text: string, targetAgentId?: string) => {
+    const channel = channels.find(c => c.id === channelId)
+    if (!channel) return
+
+    const manager = gatewayManagerRef.current
+    
+    // Determine which agent(s) to send to
+    const targetAgents = targetAgentId 
+      ? [targetAgentId] 
+      : channel.memberAgentIds
+
+    // For each target agent, send the message to their gateway
+    for (const agentId of targetAgents) {
+      const gateway = manager.getGateway(agentId)
+      if (!gateway || gateway.status !== 'connected') continue
+
+      // Create a channel message record
+      const msg: ChannelMessage = {
+        id: generateDbId(),
+        channelId,
+        agentId: 'user', // Mark as from user
+        text: targetAgentId ? `@${gatewayConfigs.find(g => g.id === targetAgentId)?.name}: ${text}` : text,
+        timestamp: Date.now()
+      }
+      
+      // Save the outgoing message
+      await saveChannelMessage(msg)
+      setChannelMessages(prev => {
+        const next = new Map(prev)
+        const existing = next.get(channelId) || []
+        next.set(channelId, [...existing, msg])
+        return next
+      })
+
+      // Send to the gateway (use main session for now)
+      // The message will include channel context
+      const channelContext = `[Channel: #${channel.name}] ${text}`
+      try {
+        // For now, broadcast to agent's main session
+        // Future: Could use a dedicated channel session
+        await gateway.chatSend('agent:main', channelContext)
+      } catch (err) {
+        console.error(`[ClawTabs] Failed to send to ${agentId}:`, err)
+      }
+    }
+  }, [channels, gatewayConfigs])
+
+  const activeChannel = channels.find(c => c.id === activeChannelId)
+  const activeChannelMessages = activeChannelId ? (channelMessages.get(activeChannelId) || []) : []
+
   if (showLanding) {
     return <LandingPage />
   }
@@ -730,8 +841,46 @@ function App() {
               selectSession(id)
             }}
           />
+        ) : viewMode === 'channels' ? (
+          <>
+            {/* Channel View */}
+            <ChannelSidebar
+              channels={channels}
+              activeChannelId={activeChannelId}
+              gateways={gatewayConfigs}
+              onSelect={setActiveChannelId}
+              onCreate={() => setChannelModalOpen(true)}
+              onDelete={handleDeleteChannel}
+              onBackToSessions={() => setViewMode('sessions')}
+            />
+            {activeChannel ? (
+              <ChannelPanel
+                channel={activeChannel}
+                messages={activeChannelMessages}
+                gateways={gatewayConfigs}
+                onSendMessage={handleSendChannelMessage}
+                onRename={(name) => handleUpdateChannel({ ...activeChannel, name })}
+                onEditMembers={() => { setEditingChannel(activeChannel); setChannelModalOpen(true) }}
+              />
+            ) : (
+              <div className="channel-placeholder">
+                <div className="channel-placeholder-icon">#</div>
+                <div className="channel-placeholder-title">Select a channel</div>
+                <div className="channel-placeholder-desc">
+                  Choose a channel from the sidebar or create a new one to start coordinating your agents.
+                </div>
+                <button 
+                  className="channel-placeholder-btn"
+                  onClick={() => setChannelModalOpen(true)}
+                >
+                  + Create Channel
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <>
+            {/* Session View */}
             {/* Agent sidebar - show when multiple gateways configured */}
             {gatewayConfigs.length > 1 && (
               <AgentSidebar
@@ -781,7 +930,12 @@ function App() {
           </>
         )}
       </div>
-      <BottomBar sessionCount={sessions.length} />
+      <BottomBar 
+        sessionCount={sessions.length} 
+        channelCount={channels.length}
+        viewMode={viewMode}
+        onToggleView={() => setViewMode(v => v === 'sessions' ? 'channels' : 'sessions')}
+      />
       <CommandPalette
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
@@ -802,6 +956,14 @@ function App() {
         onConnect={handleConnectGateway}
         onDisconnect={handleDisconnectGateway}
         onTestConnection={handleTestConnection}
+      />
+      <ChannelModal
+        isOpen={channelModalOpen}
+        onClose={() => { setChannelModalOpen(false); setEditingChannel(null) }}
+        gateways={gatewayConfigs}
+        onCreateChannel={handleCreateChannel}
+        editingChannel={editingChannel}
+        onUpdateChannel={handleUpdateChannel}
       />
     </div>
   )
