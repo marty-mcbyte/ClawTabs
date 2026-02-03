@@ -1040,9 +1040,38 @@ function App() {
   }, [gatewayConfigs])
 
   const handleUpdateTask = useCallback(async (task: Task) => {
+    // Get previous state to detect status transitions
+    const prevTask = tasks.find(t => t.id === task.id)
+    
     await saveTask(task)
     setTasks(prev => prev.map(t => t.id === task.id ? task : t))
-  }, [])
+    
+    // Dispatch to agent if task just moved to 'assigned' status with an agent
+    const wasJustAssigned = task.status === 'assigned' && 
+      task.assignedAgentId && 
+      (prevTask?.status !== 'assigned' || prevTask?.assignedAgentId !== task.assignedAgentId)
+    
+    if (wasJustAssigned) {
+      const manager = gatewayManagerRef.current
+      const gateway = manager.getGateway(task.assignedAgentId!)
+      if (gateway?.status === 'connected') {
+        const taskMessage = `[TASK #${task.id.slice(-6)}] ${task.title}${task.description ? `\n\n${task.description}` : ''}`
+        try {
+          await gateway.chatSend('agent:main', taskMessage)
+          // Log activity
+          addActivityEventRef.current({
+            agentId: task.assignedAgentId!,
+            agentName: gatewayConfigs.find(g => g.id === task.assignedAgentId)?.name || 'Agent',
+            type: 'task_start',
+            summary: `Task assigned: ${task.title}`,
+            details: task.description
+          })
+        } catch (err) {
+          console.error('[ClawTabs] Failed to send task to agent:', err)
+        }
+      }
+    }
+  }, [tasks, gatewayConfigs])
 
   const handleDeleteTask = useCallback(async (id: string) => {
     await deleteTaskDb(id)
