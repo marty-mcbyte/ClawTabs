@@ -15,6 +15,7 @@ import { ChannelModal } from './components/ChannelModal'
 import { StatsBar } from './components/StatsBar'
 import { LiveFeed } from './components/LiveFeed'
 import { TaskModal } from './components/TaskModal'
+import { KanbanBoard } from './components/KanbanBoard'
 import type { Session, Message, SystemStatus, GatewayConfig, Channel, ChannelMessage, ActivityEvent, Task } from './types'
 import { Gateway } from './gateway'
 import type { ConnectionStatus } from './gateway'
@@ -123,7 +124,7 @@ function App() {
   const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(null)
   
   // Channel state
-  const [viewMode, setViewMode] = useState<'sessions' | 'channels'>('sessions')
+  const [viewMode, setViewMode] = useState<'sessions' | 'channels' | 'tasks'>('sessions')
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null)
   const [channelMessages, setChannelMessages] = useState<Map<string, ChannelMessage[]>>(new Map())
@@ -1157,6 +1158,31 @@ function App() {
               </div>
             )}
           </>
+        ) : viewMode === 'tasks' ? (
+          <>
+            {/* Tasks View - Kanban Board */}
+            <KanbanBoard
+              tasks={tasks}
+              gateways={gatewayConfigs}
+              onUpdateTask={handleUpdateTask}
+              onEditTask={(task) => { setEditingTask(task); setTaskModalOpen(true) }}
+              onCreateTask={() => setTaskModalOpen(true)}
+            />
+            {/* Live Feed - right panel */}
+            {showLiveFeed && (
+              <LiveFeed
+                events={activityEvents}
+                gateways={gatewayConfigs}
+                onJumpToSource={(event) => {
+                  const session = sessions.find(s => s.id === event.source || s.id.includes(event.source || ''))
+                  if (session) {
+                    setViewMode('sessions')
+                    selectSession(session.id)
+                  }
+                }}
+              />
+            )}
+          </>
         ) : (
           <>
             {/* Session View */}
@@ -1226,9 +1252,10 @@ function App() {
       <BottomBar 
         sessionCount={sessions.length} 
         channelCount={channels.length}
+        taskCount={tasks.filter(t => t.status !== 'done').length}
         totalUnread={Array.from(channelUnreadCounts.values()).reduce((a, b) => a + b, 0)}
         viewMode={viewMode}
-        onToggleView={() => setViewMode(v => v === 'sessions' ? 'channels' : 'sessions')}
+        onViewChange={setViewMode}
       />
       <CommandPalette
         isOpen={commandPaletteOpen}
