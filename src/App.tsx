@@ -16,6 +16,28 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 10)
 }
 
+// LocalStorage helpers for session names (gateway doesn't persist displayName)
+const SESSION_NAMES_KEY = 'clawtabs-session-names'
+
+function loadSessionNames(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(SESSION_NAMES_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function saveSessionName(id: string, name: string) {
+  const names = loadSessionNames()
+  names[id] = name
+  localStorage.setItem(SESSION_NAMES_KEY, JSON.stringify(names))
+}
+
+function getSessionName(id: string, fallback: string): string {
+  const names = loadSessionNames()
+  return names[id] || fallback
+}
+
 function extractContent(raw: any): string {
   if (typeof raw === 'string') return raw
   if (Array.isArray(raw)) {
@@ -232,13 +254,17 @@ function App() {
         return
       }
 
-      const loaded: Session[] = remoteSessions.map((rs: any) => ({
-        id: rs.key ?? rs.sessionKey ?? rs.id ?? generateId(),
-        name: rs.displayName ?? rs.name ?? rs.label ?? rs.title ?? rs.key ?? 'Session',
-        messages: [],
-        isActive: true,
-        createdAt: rs.createdAt ?? rs.created ?? Date.now()
-      }))
+      const loaded: Session[] = remoteSessions.map((rs: any) => {
+        const id = rs.key ?? rs.sessionKey ?? rs.id ?? generateId()
+        const defaultName = rs.displayName ?? rs.name ?? rs.label ?? rs.title ?? rs.key ?? 'Session'
+        return {
+          id,
+          name: getSessionName(id, defaultName), // Check localStorage first
+          messages: [],
+          isActive: true,
+          createdAt: rs.createdAt ?? rs.created ?? Date.now()
+        }
+      })
 
       setSessions(loaded)
       setActiveSessionId(loaded[0].id)
@@ -332,7 +358,8 @@ function App() {
 
   const renameSession = useCallback((id: string, name: string) => {
     setSessions(prev => prev.map(s => s.id === id ? { ...s, name } : s))
-    gwRef.current?.renameSession(id, name).catch(() => {})
+    saveSessionName(id, name) // Persist to localStorage
+    gwRef.current?.renameSession(id, name).catch(() => {}) // Still try gateway (future-proofing)
   }, [])
 
   const addMessage = useCallback((sessionId: string, message: Message) => {
