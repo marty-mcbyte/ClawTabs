@@ -13,11 +13,12 @@ interface SidebarProps {
   getPreview: (s: Session) => string
   getTimeAgo: (ts: number) => string
   sessionCount: number
+  splitSessionId?: string
 }
 
 export function Sidebar({
   sessions, activeSessionId, onSelect, onCreate, onClose, onRename,
-  searchQuery, onSearchChange, getPreview, getTimeAgo, sessionCount
+  searchQuery, onSearchChange, getPreview, getTimeAgo, sessionCount, splitSessionId
 }: SidebarProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -84,6 +85,7 @@ export function Sidebar({
             >
               <div className="sidebar-item-indicator">
                 {session.id === activeSessionId && <span className="active-dot">●</span>}
+                {session.id === splitSessionId && <span className="split-dot">⫿</span>}
                 {session.isTyping && <span className="typing-dot">◉</span>}
               </div>
               <div className="sidebar-item-content">

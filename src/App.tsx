@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { ChatPanel } from './components/ChatPanel'
+import { SplitView } from './components/SplitView'
 import { TopBar } from './components/TopBar'
 import { BottomBar } from './components/BottomBar'
 import { OpsPanel } from './components/OpsPanel'
@@ -54,6 +55,16 @@ function App() {
   const [connStatus, setConnStatus] = useState<ConnectionStatus>('disconnected')
   const [currentRunId, setCurrentRunId] = useState<string | null>(null)
   const [showLanding, setShowLanding] = useState(false)
+  // Split view state
+  const [isSplit, setIsSplit] = useState(() => {
+    try { return localStorage.getItem('clawtabs-split') === 'true' } catch { return false }
+  })
+  const [splitRightSessionId, setSplitRightSessionId] = useState(() => {
+    try { return localStorage.getItem('clawtabs-split-right') || '' } catch { return '' }
+  })
+  const [splitRatio, setSplitRatio] = useState(() => {
+    try { return parseFloat(localStorage.getItem('clawtabs-split-ratio') || '0.5') || 0.5 } catch { return 0.5 }
+  })
   const failCountRef = useRef(0)
   const gwRef = useRef<Gateway | null>(null)
   // Track streaming content per session
@@ -66,7 +77,17 @@ function App() {
     netStatus: connStatus === 'connected' ? 'STABLE' : connStatus === 'connecting' ? 'UNSTABLE' : 'DOWN'
   }
 
+  // Persist split state
+  useEffect(() => {
+    try {
+      localStorage.setItem('clawtabs-split', String(isSplit))
+      localStorage.setItem('clawtabs-split-right', splitRightSessionId)
+      localStorage.setItem('clawtabs-split-ratio', String(splitRatio))
+    } catch {}
+  }, [isSplit, splitRightSessionId, splitRatio])
+
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0]
+  const splitRightSession = sessions.find(s => s.id === splitRightSessionId)
 
   // Initialize gateway
   useEffect(() => {
@@ -381,13 +402,28 @@ function App() {
           setActiveSessionId(sessions[idx].id)
         }
       }
+      if (e.ctrlKey && e.key === '\\') {
+        e.preventDefault()
+        toggleSplit()
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [sessions, activeSessionId, createSession, closeSession])
 
-  const handleSendMessage = useCallback((text: string, attachments?: any[]) => {
-    if (!activeSession) return
+  const toggleSplit = useCallback(() => {
+    setIsSplit(prev => {
+      if (!prev) {
+        // Opening split — pick a second session
+        const other = sessions.find(s => s.id !== activeSessionId)
+        if (other) setSplitRightSessionId(other.id)
+        else return false // can't split with only one session
+      }
+      return !prev
+    })
+  }, [sessions, activeSessionId])
+
+  const handleSendMessageForSession = useCallback((sessionId: string, text: string, attachments?: any[]) => {
     const userMsg: Message = {
       id: generateId(),
       role: 'user',
@@ -395,46 +431,41 @@ function App() {
       timestamp: Date.now(),
       ...(attachments?.length ? { attachments } : {})
     }
-    addMessage(activeSession.id, userMsg)
-    setTyping(activeSession.id, true)
+    addMessage(sessionId, userMsg)
+    setTyping(sessionId, true)
 
     const gw = gwRef.current
     if (!gw || connStatus !== 'connected') {
-      const errorMsg: Message = {
-        id: generateId(),
-        role: 'system',
-        content: '⚠ Not connected to OpenClaw gateway.',
-        timestamp: Date.now()
-      }
-      addMessage(activeSession.id, errorMsg)
-      setTyping(activeSession.id, false)
+      addMessage(sessionId, { id: generateId(), role: 'system', content: '⚠ Not connected to OpenClaw gateway.', timestamp: Date.now() })
+      setTyping(sessionId, false)
       return
     }
 
-    gw.chatSend(activeSession.id, text, attachments)
-      .then((ack: any) => {
-        if (ack?.runId) setCurrentRunId(ack.runId)
-        // Response will stream via chat events
-      })
+    gw.chatSend(sessionId, text, attachments)
+      .then((ack: any) => { if (ack?.runId) setCurrentRunId(ack.runId) })
       .catch(() => {
-        const errorMsg: Message = {
-          id: generateId(),
-          role: 'system',
-          content: '⚠ Failed to send message to gateway.',
-          timestamp: Date.now()
-        }
-        addMessage(activeSession.id, errorMsg)
-        setTyping(activeSession.id, false)
+        addMessage(sessionId, { id: generateId(), role: 'system', content: '⚠ Failed to send message to gateway.', timestamp: Date.now() })
+        setTyping(sessionId, false)
       })
-  }, [activeSession, addMessage, setTyping, connStatus])
+  }, [addMessage, setTyping, connStatus])
+
+  const handleSendMessage = useCallback((text: string, attachments?: any[]) => {
+    if (!activeSession) return
+    handleSendMessageForSession(activeSession.id, text, attachments)
+  }, [activeSession, handleSendMessageForSession])
+
+  const handleAbortForSession = useCallback((sessionId: string) => {
+    if (!gwRef.current) return
+    gwRef.current.chatAbort(sessionId, currentRunId ?? undefined).catch(() => {})
+    setTyping(sessionId, false)
+    streamingRef.current.delete(sessionId)
+    setCurrentRunId(null)
+  }, [currentRunId, setTyping])
 
   const handleAbort = useCallback(() => {
-    if (!activeSession || !gwRef.current) return
-    gwRef.current.chatAbort(activeSession.id, currentRunId ?? undefined).catch(() => {})
-    setTyping(activeSession.id, false)
-    streamingRef.current.delete(activeSession.id)
-    setCurrentRunId(null)
-  }, [activeSession, currentRunId, setTyping])
+    if (!activeSession) return
+    handleAbortForSession(activeSession.id)
+  }, [activeSession, handleAbortForSession])
 
   if (showLanding) {
     return <LandingPage />
@@ -463,6 +494,8 @@ function App() {
         onTabChange={setActiveTab}
         chatCount={chatSessions.length}
         opsCount={opsSessions.length}
+        isSplit={isSplit}
+        onToggleSplit={toggleSplit}
       />
       <div className="main-content">
         {activeTab === 'ops' ? (
@@ -490,13 +523,29 @@ function App() {
               getPreview={getPreview}
               getTimeAgo={getTimeAgo}
               sessionCount={chatSessions.length}
+              splitSessionId={isSplit ? splitRightSessionId : undefined}
             />
-            <ChatPanel
-              session={activeSession}
-              onSendMessage={handleSendMessage}
-              onRename={(name) => renameSession(activeSession.id, name)}
-              onAbort={activeSession?.isTyping ? handleAbort : undefined}
-            />
+            {isSplit && splitRightSession ? (
+              <SplitView
+                leftSession={activeSession}
+                rightSession={splitRightSession}
+                allSessions={chatSessions}
+                onSendMessage={handleSendMessageForSession}
+                onRename={renameSession}
+                onAbort={handleAbortForSession}
+                onSelectRight={(id) => { setSplitRightSessionId(id); loadHistory(id) }}
+                onCloseSplit={() => setIsSplit(false)}
+                splitRatio={splitRatio}
+                onSplitRatioChange={setSplitRatio}
+              />
+            ) : (
+              <ChatPanel
+                session={activeSession}
+                onSendMessage={handleSendMessage}
+                onRename={(name) => renameSession(activeSession.id, name)}
+                onAbort={activeSession?.isTyping ? handleAbort : undefined}
+              />
+            )}
           </>
         )}
       </div>

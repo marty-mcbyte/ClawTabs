@@ -6,9 +6,11 @@ interface TopBarProps {
   onTabChange: (tab: 'chat' | 'ops') => void
   chatCount?: number
   opsCount?: number
+  isSplit?: boolean
+  onToggleSplit?: () => void
 }
 
-export function TopBar({ status, activeTab, onTabChange, chatCount = 0, opsCount = 0 }: TopBarProps) {
+export function TopBar({ status, activeTab, onTabChange, chatCount = 0, opsCount = 0, isSplit, onToggleSplit }: TopBarProps) {
   const now = new Date()
   const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 
@@ -37,6 +39,15 @@ export function TopBar({ status, activeTab, onTabChange, chatCount = 0, opsCount
       </div>
       <div className="top-bar-center">
         <span className="top-bar-section">▣ COMMUNICATIONS</span>
+        {onToggleSplit && (
+          <button
+            className={`split-toggle-btn ${isSplit ? 'split-active' : ''}`}
+            onClick={onToggleSplit}
+            title={isSplit ? 'Close split view (Ctrl+\\)' : 'Split view (Ctrl+\\)'}
+          >
+            ⫿
+          </button>
+        )}
       </div>
       <div className="top-bar-right">
         <span className="top-bar-time">// {timeStr}</span>
