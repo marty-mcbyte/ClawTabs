@@ -5,13 +5,17 @@ interface StatsBarProps {
   totalAgentCount: number
   taskCount: number
   sessionCount: number
+  showFeed?: boolean
+  onToggleFeed?: () => void
 }
 
 export function StatsBar({
   activeAgentCount,
   totalAgentCount,
   taskCount,
-  sessionCount
+  sessionCount,
+  showFeed,
+  onToggleFeed
 }: StatsBarProps) {
   return (
     <div className="stats-bar">
@@ -38,6 +42,20 @@ export function StatsBar({
           <span className="stat-value">{sessionCount}</span>
           <span className="stat-label">SESSIONS</span>
         </div>
+        
+        {onToggleFeed && (
+          <>
+            <div className="stat-divider">•</div>
+            <button 
+              className={`stat-toggle ${showFeed ? 'active' : ''}`}
+              onClick={onToggleFeed}
+              title={showFeed ? 'Hide Live Feed' : 'Show Live Feed'}
+            >
+              <span className="stat-icon">📡</span>
+              <span className="stat-label">FEED</span>
+            </button>
+          </>
+        )}
       </div>
     </div>
   )

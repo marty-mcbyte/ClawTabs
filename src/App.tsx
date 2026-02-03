@@ -13,7 +13,8 @@ import { ChannelSidebar } from './components/ChannelSidebar'
 import { ChannelPanel } from './components/ChannelPanel'
 import { ChannelModal } from './components/ChannelModal'
 import { StatsBar } from './components/StatsBar'
-import type { Session, Message, SystemStatus, GatewayConfig, Channel, ChannelMessage } from './types'
+import { LiveFeed } from './components/LiveFeed'
+import type { Session, Message, SystemStatus, GatewayConfig, Channel, ChannelMessage, ActivityEvent } from './types'
 import { Gateway } from './gateway'
 import type { ConnectionStatus } from './gateway'
 import { getGatewayManager } from './store/GatewayManager'
@@ -139,6 +140,26 @@ function App() {
   // Refs for notification data (to avoid stale closures)
   const gatewayConfigsRef = useRef<GatewayConfig[]>([])
   const channelsRef = useRef<Channel[]>([])
+  
+  // Activity feed state
+  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
+  const [showLiveFeed, setShowLiveFeed] = useState(true)
+  const MAX_ACTIVITY_EVENTS = 100
+  
+  // Helper to add activity event (using ref for stable reference in event handlers)
+  const addActivityEventRef = useRef<(event: Omit<ActivityEvent, 'id' | 'timestamp'>) => void>(() => {})
+  addActivityEventRef.current = (event: Omit<ActivityEvent, 'id' | 'timestamp'>) => {
+    const fullEvent: ActivityEvent = {
+      ...event,
+      id: generateId(),
+      timestamp: Date.now()
+    }
+    setActivityEvents(prev => {
+      const updated = [fullEvent, ...prev]
+      // Keep only last N events
+      return updated.slice(0, MAX_ACTIVITY_EVENTS)
+    })
+  }
   
   // Keep refs in sync
   useEffect(() => { gatewayConfigsRef.current = gatewayConfigs }, [gatewayConfigs])
@@ -297,6 +318,18 @@ function App() {
           return
         }
 
+        // Capture activity for error events
+        if (stream === 'error' && gatewayId) {
+          const agentName = gatewayConfigsRef.current.find(g => g.id === gatewayId)?.name || 'Agent'
+          addActivityEventRef.current({
+            agentId: gatewayId,
+            agentName,
+            type: 'error',
+            summary: data?.message || 'An error occurred',
+            source: sessionKey
+          })
+        }
+
         // Assistant text streaming
         if (stream === 'assistant' && data?.text) {
           const fullText = data.text
@@ -337,6 +370,22 @@ function App() {
         const content = payload?.message?.content
         if (Array.isArray(content)) {
           const text = content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
+          
+          // Add activity event for message
+          if (gatewayId && text) {
+            const agentName = gatewayConfigsRef.current.find(g => g.id === gatewayId)?.name || 'Agent'
+            const ctx = channelContextRef.current.get(gatewayId)
+            const channelName = ctx ? channelsRef.current.find(c => c.id === ctx.channelId)?.name : undefined
+            
+            addActivityEventRef.current({
+              agentId: gatewayId,
+              agentName,
+              type: 'message',
+              summary: channelName ? `Replied in #${channelName}` : `Responded in ${sessionKey.split(':').pop() || 'session'}`,
+              details: text.substring(0, 150) + (text.length > 150 ? '...' : ''),
+              source: channelName ? `#${channelName}` : sessionKey
+            })
+          }
           
           // Check if this should be routed to a channel
           if (gatewayId && routeToChannelIfNeeded(text, gatewayId)) {
@@ -988,6 +1037,8 @@ function App() {
         totalAgentCount={gatewayConfigs.length}
         taskCount={0} // TODO: Wire up when task system is implemented
         sessionCount={sessions.length}
+        showFeed={showLiveFeed}
+        onToggleFeed={() => setShowLiveFeed(prev => !prev)}
       />
       <div className="main-content">
         {activeTab === 'ops' ? (
@@ -1087,6 +1138,20 @@ function App() {
                 onSendMessage={handleSendMessage}
                 onRename={(name) => renameSession(activeSession.id, name)}
                 onAbort={activeSession?.isTyping ? handleAbort : undefined}
+              />
+            )}
+            {/* Live Feed - right panel */}
+            {showLiveFeed && (
+              <LiveFeed
+                events={activityEvents}
+                gateways={gatewayConfigs}
+                onJumpToSource={(event) => {
+                  // Try to jump to the session
+                  const session = sessions.find(s => s.id === event.source || s.id.includes(event.source || ''))
+                  if (session) {
+                    selectSession(session.id)
+                  }
+                }}
               />
             )}
           </>

@@ -5,38 +5,38 @@ Transform ClawTabs from a chat UI into a full **Mission Control** for AI agent c
 
 ---
 
-## Phase 1: Agent Enhancements (Day 1)
+## Phase 1: Agent Enhancements (Day 1) ✅ COMPLETE
 **Goal:** Make agents more than just connection endpoints
 
-### 1.1 Agent Profiles
-- [ ] Add fields to `GatewayConfig` type:
+### 1.1 Agent Profiles ✅
+- [x] Add fields to `GatewayConfig` type:
   ```typescript
   role?: string        // "Dev", "Research", "Content", "Finance"
   description?: string // "Handles code reviews and PRs"
   avatar?: string      // URL or emoji
   capabilities?: string[] // ["code", "research", "write"]
   ```
-- [ ] Update IndexedDB schema (migration)
-- [ ] Update GatewaySettings modal with new fields
-- [ ] Display role under agent name in AgentSidebar
+- [x] Update IndexedDB schema (migration)
+- [x] Update GatewaySettings modal with new fields
+- [x] Display role under agent name in AgentSidebar
 
-### 1.2 Enhanced Status
-- [ ] Add `workingStatus` to track activity:
+### 1.2 Enhanced Status ✅
+- [x] Add `workingStatus` to track activity:
   ```typescript
   workingStatus: 'working' | 'standby' | 'busy' | 'offline'
   currentTask?: string // "Processing PR review..."
   ```
-- [ ] Infer status from chat events (typing = working, idle = standby)
-- [ ] Show status text under agent name ("● WORKING", "● STANDBY")
+- [x] Infer status from chat events (typing = working, idle = standby)
+- [x] Show status text under agent name ("● WORKING", "● STANDBY")
 
-### 1.3 Header Stats Bar
-- [ ] Create `StatsBar` component above main content:
+### 1.3 Header Stats Bar ✅
+- [x] Create `StatsBar` component above main content:
   ```
   ◉ 2 AGENTS ACTIVE  •  13 TASKS IN QUEUE  •  5 SESSIONS
   ```
-- [ ] Real-time counters from state
+- [x] Real-time counters from state
 
-**Estimated:** 3-4 hours
+**Estimated:** 3-4 hours | **Actual:** ~25 minutes
 
 ---
 
