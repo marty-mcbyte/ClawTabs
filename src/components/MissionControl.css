@@ -1,0 +1,380 @@
+.mission-control {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary);
+  flex: 1;
+}
+
+/* Header */
+.mc-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.mc-header-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mc-logo {
+  font-size: 18px;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; text-shadow: 0 0 10px var(--accent); }
+  50% { opacity: 0.7; text-shadow: 0 0 5px var(--accent); }
+}
+
+.mc-header-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mc-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mc-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.mc-stat-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+}
+
+.mc-stat-divider {
+  color: var(--border);
+}
+
+.mc-new-task {
+  margin-left: auto;
+  background: var(--accent);
+  border: none;
+  color: var(--bg-primary);
+  padding: 8px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.mc-new-task:hover {
+  background: #00cc7a;
+  transform: translateY(-1px);
+}
+
+/* 3-Panel Layout */
+.mc-panels {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.mc-panel-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--text-dim);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Agents Panel */
+.mc-agents {
+  width: 200px;
+  min-width: 200px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.mc-agent-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-left: 2px solid transparent;
+}
+
+.mc-agent-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.mc-agent-item.active {
+  background: var(--bg-tertiary);
+  border-left-color: var(--accent);
+}
+
+.mc-agent-avatar {
+  font-size: 20px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  border-radius: 6px;
+}
+
+.mc-agent-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mc-agent-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mc-agent-status {
+  font-size: 9px;
+  letter-spacing: 0.05em;
+}
+
+.mc-agent-status.working {
+  color: var(--accent);
+}
+
+.mc-agent-status.standby {
+  color: var(--text-dim);
+}
+
+.mc-agent-tasks {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.mc-agent-badge {
+  background: var(--accent);
+  color: var(--bg-primary);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+/* Kanban Panel */
+.mc-kanban {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mc-columns {
+  display: flex;
+  flex: 1;
+  overflow-x: auto;
+  padding: 12px;
+  gap: 8px;
+}
+
+.mc-column {
+  flex: 1;
+  min-width: 140px;
+  max-width: 200px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.15s;
+}
+
+.mc-column.drag-over {
+  border-color: var(--accent);
+}
+
+.mc-column-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mc-column-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+}
+
+.mc-column-title {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  flex: 1;
+}
+
+.mc-column-count {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+.mc-column-shortcut {
+  font-size: 9px;
+  color: var(--text-dim);
+  opacity: 0.5;
+  padding: 1px 4px;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+}
+
+.mc-column-tasks {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mc-column-more {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 4px;
+}
+
+.mc-column-empty {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 20px 4px;
+  opacity: 0.5;
+}
+
+/* Feed Panel */
+.mc-feed {
+  width: 260px;
+  min-width: 260px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.mc-feed-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.mc-feed-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.mc-feed-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.mc-feed-avatar {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.mc-feed-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.mc-feed-agent {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+
+.mc-feed-summary {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mc-feed-time {
+  font-size: 9px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+.mc-feed-empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 40px 20px;
+  font-size: 12px;
+}
+
+/* Footer */
+.mc-footer {
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.mc-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .mc-agents {
+    width: 160px;
+    min-width: 160px;
+  }
+  
+  .mc-feed {
+    width: 200px;
+    min-width: 200px;
+  }
+  
+  .mc-column {
+    min-width: 120px;
+  }
+}

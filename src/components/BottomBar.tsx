@@ -3,8 +3,8 @@ interface BottomBarProps {
   channelCount?: number
   taskCount?: number
   totalUnread?: number
-  viewMode?: 'sessions' | 'channels' | 'tasks'
-  onViewChange?: (view: 'sessions' | 'channels' | 'tasks') => void
+  viewMode?: 'sessions' | 'channels' | 'tasks' | 'mission'
+  onViewChange?: (view: 'sessions' | 'channels' | 'tasks' | 'mission') => void
 }
 
 export function BottomBar({ 
@@ -49,6 +49,14 @@ export function BottomBar({
             <span className="bottom-tab-icon">▣</span>
             Tasks
             <span className="bottom-tab-count">{taskCount}</span>
+          </button>
+          <button 
+            className={`bottom-tab mission-tab ${viewMode === 'mission' ? 'active' : ''}`}
+            onClick={() => onViewChange('mission')}
+            title="Mission Control (Ctrl+M)"
+          >
+            <span className="bottom-tab-icon">◉</span>
+            Mission
           </button>
         </div>
       )}

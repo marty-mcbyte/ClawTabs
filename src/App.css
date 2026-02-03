@@ -1401,3 +1401,14 @@ body {
   font-family: var(--font-mono);
   letter-spacing: 0.5px;
 }
+
+.bottom-tab.mission-tab {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.bottom-tab.mission-tab:hover,
+.bottom-tab.mission-tab.active {
+  background: var(--accent);
+  color: var(--bg-primary);
+}

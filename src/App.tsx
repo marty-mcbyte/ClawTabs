@@ -16,6 +16,7 @@ import { StatsBar } from './components/StatsBar'
 import { LiveFeed } from './components/LiveFeed'
 import { TaskModal } from './components/TaskModal'
 import { KanbanBoard } from './components/KanbanBoard'
+import { MissionControl } from './components/MissionControl'
 import type { Session, Message, SystemStatus, GatewayConfig, Channel, ChannelMessage, ActivityEvent, Task } from './types'
 import { Gateway } from './gateway'
 import type { ConnectionStatus } from './gateway'
@@ -124,7 +125,7 @@ function App() {
   const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(null)
   
   // Channel state
-  const [viewMode, setViewMode] = useState<'sessions' | 'channels' | 'tasks'>('sessions')
+  const [viewMode, setViewMode] = useState<'sessions' | 'channels' | 'tasks' | 'mission'>('sessions')
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null)
   const [channelMessages, setChannelMessages] = useState<Map<string, ChannelMessage[]>>(new Map())
@@ -808,6 +809,11 @@ function App() {
         e.preventDefault()
         setTaskModalOpen(true)
       }
+      // Ctrl+M - Toggle Mission Control
+      if (e.ctrlKey && e.key === 'm') {
+        e.preventDefault()
+        setViewMode(v => v === 'mission' ? 'sessions' : 'mission')
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -1118,6 +1124,17 @@ function App() {
               setActiveTab('chat')
               selectSession(id)
             }}
+          />
+        ) : viewMode === 'mission' ? (
+          <MissionControl
+            tasks={tasks}
+            gateways={gatewayConfigs}
+            events={activityEvents}
+            onUpdateTask={handleUpdateTask}
+            onEditTask={(task) => { setEditingTask(task); setTaskModalOpen(true) }}
+            onCreateTask={() => setTaskModalOpen(true)}
+            onSelectAgent={setSelectedGatewayId}
+            selectedAgentId={selectedGatewayId}
           />
         ) : viewMode === 'channels' ? (
           <>
