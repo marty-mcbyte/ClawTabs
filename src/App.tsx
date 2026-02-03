@@ -123,6 +123,8 @@ function App() {
   const [channelMessages, setChannelMessages] = useState<Map<string, ChannelMessage[]>>(new Map())
   const [channelModalOpen, setChannelModalOpen] = useState(false)
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
+  // Track pending channel context per gateway (for routing responses back)
+  const channelContextRef = useRef<Map<string, { channelId: string; timestamp: number }>>(new Map())
 
   const status: SystemStatus = {
     connected: connStatus === 'connected',
@@ -149,9 +151,36 @@ function App() {
     const { url, token, hasExplicitGateway } = getConfigFromUrl()
 
     // Handler for chat events from any gateway
-    const handleChatEvent = (payload: any, eventType: string) => {
+    const handleChatEvent = (payload: any, eventType: string, gatewayId?: string) => {
       const sessionKey = payload?.sessionKey
       if (!sessionKey) return
+
+      // Helper to route response to channel if context exists
+      const routeToChannelIfNeeded = (text: string, agentId: string) => {
+        const ctx = channelContextRef.current.get(agentId)
+        if (ctx && Date.now() - ctx.timestamp < 5 * 60 * 1000) { // 5 min timeout
+          // Create channel message from agent response
+          const channelMsg: ChannelMessage = {
+            id: generateDbId(),
+            channelId: ctx.channelId,
+            agentId: agentId,
+            text: text,
+            timestamp: Date.now()
+          }
+          // Save and add to state
+          saveChannelMessage(channelMsg).catch(console.error)
+          setChannelMessages(prev => {
+            const next = new Map(prev)
+            const existing = next.get(ctx.channelId) || []
+            next.set(ctx.channelId, [...existing, channelMsg])
+            return next
+          })
+          // Clear context after response
+          channelContextRef.current.delete(agentId)
+          return true
+        }
+        return false
+      }
 
       // Use agent events for streaming (they have delta text)
       if (eventType === 'agent') {
@@ -215,6 +244,12 @@ function App() {
         const content = payload?.message?.content
         if (Array.isArray(content)) {
           const text = content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
+          
+          // Check if this should be routed to a channel
+          if (gatewayId && routeToChannelIfNeeded(text, gatewayId)) {
+            // Response was routed to channel, also update session for completeness
+          }
+          
           const existing = streamingRef.current.get(sessionKey)
           if (existing) {
             // Update the streaming message with final content
@@ -257,7 +292,7 @@ function App() {
           gwRef.current = firstConnected.gateway
         }
       } else if (event.type === 'chatEvent') {
-        handleChatEvent(event.payload, event.payload.eventType)
+        handleChatEvent(event.payload, event.payload.eventType, event.gatewayId)
       } else if (event.type === 'gatewayAdded' || event.type === 'gatewayRemoved') {
         setGatewayConfigs([...manager.getConfigs()])
       }
@@ -740,38 +775,44 @@ function App() {
       ? [targetAgentId] 
       : channel.memberAgentIds
 
+    // Create the user's message first (only once, not per agent)
+    const userMsg: ChannelMessage = {
+      id: generateDbId(),
+      channelId,
+      agentId: 'user',
+      text: text,
+      timestamp: Date.now()
+    }
+    
+    await saveChannelMessage(userMsg)
+    setChannelMessages(prev => {
+      const next = new Map(prev)
+      const existing = next.get(channelId) || []
+      next.set(channelId, [...existing, userMsg])
+      return next
+    })
+
     // For each target agent, send the message to their gateway
     for (const agentId of targetAgents) {
       const gateway = manager.getGateway(agentId)
       if (!gateway || gateway.status !== 'connected') continue
 
-      // Create a channel message record
-      const msg: ChannelMessage = {
-        id: generateDbId(),
+      // Register channel context for this agent so responses get routed back
+      channelContextRef.current.set(agentId, {
         channelId,
-        agentId: 'user', // Mark as from user
-        text: targetAgentId ? `@${gatewayConfigs.find(g => g.id === targetAgentId)?.name}: ${text}` : text,
         timestamp: Date.now()
-      }
-      
-      // Save the outgoing message
-      await saveChannelMessage(msg)
-      setChannelMessages(prev => {
-        const next = new Map(prev)
-        const existing = next.get(channelId) || []
-        next.set(channelId, [...existing, msg])
-        return next
       })
 
-      // Send to the gateway (use main session for now)
-      // The message will include channel context
-      const channelContext = `[Channel: #${channel.name}] ${text}`
+      // Send to the gateway with channel context
+      const agentName = gatewayConfigs.find(g => g.id === agentId)?.name || 'Agent'
+      const channelContext = `[Channel: #${channel.name}] ${targetAgentId ? `@${agentName}: ` : ''}${text}`
+      
       try {
-        // For now, broadcast to agent's main session
-        // Future: Could use a dedicated channel session
         await gateway.chatSend('agent:main', channelContext)
       } catch (err) {
         console.error(`[ClawTabs] Failed to send to ${agentId}:`, err)
+        // Clear context on failure
+        channelContextRef.current.delete(agentId)
       }
     }
   }, [channels, gatewayConfigs])
