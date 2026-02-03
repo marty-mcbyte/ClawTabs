@@ -1,15 +1,16 @@
 // IndexedDB layer for ClawTabs multi-gateway storage
-import type { GatewayConfig, Agent, Channel, ChannelMessage } from '../types'
+import type { GatewayConfig, Agent, Channel, ChannelMessage, Task } from '../types'
 
 const DB_NAME = 'clawtabs'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 // Store names
 const STORES = {
   GATEWAYS: 'gateways',
   AGENTS: 'agents',
   CHANNELS: 'channels',
-  MESSAGES: 'messages'
+  MESSAGES: 'messages',
+  TASKS: 'tasks'
 } as const
 
 let dbInstance: IDBDatabase | null = null
@@ -59,6 +60,15 @@ export async function openDB(): Promise<IDBDatabase> {
         messageStore.createIndex('channelId', 'channelId', { unique: false })
         messageStore.createIndex('agentId', 'agentId', { unique: false })
         messageStore.createIndex('timestamp', 'timestamp', { unique: false })
+      }
+
+      // Tasks store (added in v2)
+      if (!db.objectStoreNames.contains(STORES.TASKS)) {
+        const taskStore = db.createObjectStore(STORES.TASKS, { keyPath: 'id' })
+        taskStore.createIndex('status', 'status', { unique: false })
+        taskStore.createIndex('assignedAgentId', 'assignedAgentId', { unique: false })
+        taskStore.createIndex('createdAt', 'createdAt', { unique: false })
+        taskStore.createIndex('priority', 'priority', { unique: false })
       }
     }
   })
@@ -240,6 +250,51 @@ export async function deleteMessage(id: string): Promise<void> {
   return del(STORES.MESSAGES, id)
 }
 
+// ============ Task CRUD ============
+
+export async function getAllTasks(): Promise<Task[]> {
+  return getAll<Task>(STORES.TASKS)
+}
+
+export async function getTask(id: string): Promise<Task | undefined> {
+  return get<Task>(STORES.TASKS, id)
+}
+
+export async function getTasksByStatus(status: Task['status']): Promise<Task[]> {
+  return getByIndex<Task>(STORES.TASKS, 'status', status)
+}
+
+export async function getTasksByAgent(agentId: string): Promise<Task[]> {
+  return getByIndex<Task>(STORES.TASKS, 'assignedAgentId', agentId)
+}
+
+export async function saveTask(task: Task): Promise<void> {
+  return put(STORES.TASKS, task)
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  return del(STORES.TASKS, id)
+}
+
+export async function updateTaskStatus(id: string, status: Task['status']): Promise<void> {
+  const task = await getTask(id)
+  if (task) {
+    task.status = status
+    task.updatedAt = Date.now()
+    await saveTask(task)
+  }
+}
+
+export async function assignTask(id: string, agentId: string): Promise<void> {
+  const task = await getTask(id)
+  if (task) {
+    task.assignedAgentId = agentId
+    task.status = 'assigned'
+    task.updatedAt = Date.now()
+    await saveTask(task)
+  }
+}
+
 // ============ Utility ============
 
 export function generateId(): string {
@@ -251,12 +306,13 @@ export function generateId(): string {
  */
 export async function clearAllData(): Promise<void> {
   const db = await openDB()
-  const tx = db.transaction([STORES.GATEWAYS, STORES.AGENTS, STORES.CHANNELS, STORES.MESSAGES], 'readwrite')
+  const tx = db.transaction([STORES.GATEWAYS, STORES.AGENTS, STORES.CHANNELS, STORES.MESSAGES, STORES.TASKS], 'readwrite')
   
   tx.objectStore(STORES.GATEWAYS).clear()
   tx.objectStore(STORES.AGENTS).clear()
   tx.objectStore(STORES.CHANNELS).clear()
   tx.objectStore(STORES.MESSAGES).clear()
+  tx.objectStore(STORES.TASKS).clear()
   
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve()

@@ -63,6 +63,31 @@
   font-size: 10px;
 }
 
+/* Add task button */
+.stat-add-btn {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 4px;
+  margin-left: 6px;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.stat-add-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-primary);
+}
+
 /* Feed toggle button */
 .stat-toggle {
   display: flex;

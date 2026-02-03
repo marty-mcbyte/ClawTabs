@@ -14,7 +14,8 @@ import { ChannelPanel } from './components/ChannelPanel'
 import { ChannelModal } from './components/ChannelModal'
 import { StatsBar } from './components/StatsBar'
 import { LiveFeed } from './components/LiveFeed'
-import type { Session, Message, SystemStatus, GatewayConfig, Channel, ChannelMessage, ActivityEvent } from './types'
+import { TaskModal } from './components/TaskModal'
+import type { Session, Message, SystemStatus, GatewayConfig, Channel, ChannelMessage, ActivityEvent, Task } from './types'
 import { Gateway } from './gateway'
 import type { ConnectionStatus } from './gateway'
 import { getGatewayManager } from './store/GatewayManager'
@@ -25,7 +26,10 @@ import {
   saveChannel,
   deleteChannel as deleteChannelDb,
   getMessagesByChannel,
-  saveMessage as saveChannelMessage
+  saveMessage as saveChannelMessage,
+  getAllTasks,
+  saveTask,
+  deleteTask as deleteTaskDb
 } from './store/db'
 import './App.css'
 
@@ -145,6 +149,11 @@ function App() {
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
   const [showLiveFeed, setShowLiveFeed] = useState(true)
   const MAX_ACTIVITY_EVENTS = 100
+  
+  // Task state
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [taskModalOpen, setTaskModalOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
   
   // Helper to add activity event (using ref for stable reference in event handlers)
   const addActivityEventRef = useRef<(event: Omit<ActivityEvent, 'id' | 'timestamp'>) => void>(() => {})
@@ -501,6 +510,15 @@ function App() {
     })
   }, [])
 
+  // Load tasks from IndexedDB on mount
+  useEffect(() => {
+    getAllTasks().then(storedTasks => {
+      setTasks(storedTasks)
+    }).catch(err => {
+      console.error('[ClawTabs] Failed to load tasks:', err)
+    })
+  }, [])
+
   // Load sessions from ALL connected gateways
   useEffect(() => {
     if (connStatus !== 'connected') return
@@ -784,6 +802,11 @@ function App() {
         e.preventDefault()
         toggleSplit()
       }
+      // Ctrl+T - Create task
+      if (e.ctrlKey && e.key === 't') {
+        e.preventDefault()
+        setTaskModalOpen(true)
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -977,6 +1000,48 @@ function App() {
     }
   }, [channels, gatewayConfigs])
 
+  // Task handlers
+  const handleCreateTask = useCallback(async (task: Task) => {
+    await saveTask(task)
+    setTasks(prev => [task, ...prev])
+    
+    // Add activity event
+    addActivityEventRef.current({
+      agentId: task.assignedAgentId || 'system',
+      agentName: task.assignedAgentId 
+        ? gatewayConfigs.find(g => g.id === task.assignedAgentId)?.name || 'Agent'
+        : 'System',
+      type: 'task_start',
+      summary: `Task created: ${task.title}`,
+      details: task.description,
+      source: task.source?.name
+    })
+    
+    // If task is assigned to an agent, send it to them
+    if (task.assignedAgentId && task.status === 'assigned') {
+      const manager = gatewayManagerRef.current
+      const gateway = manager.getGateway(task.assignedAgentId)
+      if (gateway?.status === 'connected') {
+        const taskMessage = `[TASK #${task.id.slice(-6)}] ${task.title}${task.description ? `\n\n${task.description}` : ''}`
+        try {
+          await gateway.chatSend('agent:main', taskMessage)
+        } catch (err) {
+          console.error('[ClawTabs] Failed to send task to agent:', err)
+        }
+      }
+    }
+  }, [gatewayConfigs])
+
+  const handleUpdateTask = useCallback(async (task: Task) => {
+    await saveTask(task)
+    setTasks(prev => prev.map(t => t.id === task.id ? task : t))
+  }, [])
+
+  const handleDeleteTask = useCallback(async (id: string) => {
+    await deleteTaskDb(id)
+    setTasks(prev => prev.filter(t => t.id !== id))
+  }, [])
+
   const activeChannel = channels.find(c => c.id === activeChannelId)
   const activeChannelMessages = activeChannelId ? (channelMessages.get(activeChannelId) || []) : []
 
@@ -1035,10 +1100,11 @@ function App() {
       <StatsBar
         activeAgentCount={gatewayConfigs.filter(g => g.status === 'connected').length}
         totalAgentCount={gatewayConfigs.length}
-        taskCount={0} // TODO: Wire up when task system is implemented
+        taskCount={tasks.filter(t => t.status !== 'done').length}
         sessionCount={sessions.length}
         showFeed={showLiveFeed}
         onToggleFeed={() => setShowLiveFeed(prev => !prev)}
+        onCreateTask={() => setTaskModalOpen(true)}
       />
       <div className="main-content">
         {activeTab === 'ops' ? (
@@ -1194,6 +1260,15 @@ function App() {
         onCreateChannel={handleCreateChannel}
         editingChannel={editingChannel}
         onUpdateChannel={handleUpdateChannel}
+      />
+      <TaskModal
+        isOpen={taskModalOpen}
+        onClose={() => { setTaskModalOpen(false); setEditingTask(null) }}
+        onCreateTask={handleCreateTask}
+        onUpdateTask={handleUpdateTask}
+        onDeleteTask={handleDeleteTask}
+        editingTask={editingTask}
+        gateways={gatewayConfigs}
       />
     </div>
   )

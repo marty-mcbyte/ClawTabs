@@ -7,6 +7,7 @@ interface StatsBarProps {
   sessionCount: number
   showFeed?: boolean
   onToggleFeed?: () => void
+  onCreateTask?: () => void
 }
 
 export function StatsBar({
@@ -15,7 +16,8 @@ export function StatsBar({
   taskCount,
   sessionCount,
   showFeed,
-  onToggleFeed
+  onToggleFeed,
+  onCreateTask
 }: StatsBarProps) {
   return (
     <div className="stats-bar">
@@ -33,6 +35,15 @@ export function StatsBar({
           <span className="stat-icon stat-icon-tasks">▣</span>
           <span className="stat-value">{taskCount}</span>
           <span className="stat-label">TASKS</span>
+          {onCreateTask && (
+            <button 
+              className="stat-add-btn" 
+              onClick={onCreateTask}
+              title="Create Task (Ctrl+T)"
+            >
+              +
+            </button>
+          )}
         </div>
         
         <div className="stat-divider">•</div>
