@@ -125,6 +125,8 @@ function App() {
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
   // Track pending channel context per gateway (for routing responses back)
   const channelContextRef = useRef<Map<string, { channelId: string; timestamp: number }>>(new Map())
+  // Track which agents are currently typing in channels
+  const [channelTypingAgents, setChannelTypingAgents] = useState<Map<string, Set<string>>>(new Map())
 
   const status: SystemStatus = {
     connected: connStatus === 'connected',
@@ -194,12 +196,37 @@ function App() {
             setSessions(prev => prev.map(s =>
               s.id === sessionKey ? { ...s, isTyping: true } : s
             ))
+            // Track channel typing if there's a channel context
+            if (gatewayId) {
+              const ctx = channelContextRef.current.get(gatewayId)
+              if (ctx) {
+                setChannelTypingAgents(prev => {
+                  const next = new Map(prev)
+                  const agents = next.get(ctx.channelId) || new Set()
+                  agents.add(gatewayId)
+                  next.set(ctx.channelId, agents)
+                  return next
+                })
+              }
+            }
           } else if (data?.phase === 'end') {
             streamingRef.current.delete(sessionKey)
             setSessions(prev => prev.map(s =>
               s.id === sessionKey ? { ...s, isTyping: false } : s
             ))
             setCurrentRunId(null)
+            // Clear channel typing
+            if (gatewayId) {
+              setChannelTypingAgents(prev => {
+                const next = new Map(prev)
+                for (const [channelId, agents] of next) {
+                  agents.delete(gatewayId)
+                  if (agents.size === 0) next.delete(channelId)
+                  else next.set(channelId, agents)
+                }
+                return next
+              })
+            }
           }
           return
         }
@@ -899,6 +926,7 @@ function App() {
                 channel={activeChannel}
                 messages={activeChannelMessages}
                 gateways={gatewayConfigs}
+                typingAgentIds={Array.from(channelTypingAgents.get(activeChannel.id) || [])}
                 onSendMessage={handleSendChannelMessage}
                 onRename={(name) => handleUpdateChannel({ ...activeChannel, name })}
                 onEditMembers={() => { setEditingChannel(activeChannel); setChannelModalOpen(true) }}

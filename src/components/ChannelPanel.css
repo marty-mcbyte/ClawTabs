@@ -252,3 +252,34 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Typing Indicator */
+.channel-typing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+  animation: fadeIn 0.2s ease;
+}
+
+.channel-typing-agent {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.channel-typing-dot {
+  font-size: 8px;
+  animation: pulse 1.5s infinite;
+}
+
+.channel-typing-text {
+  font-style: italic;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

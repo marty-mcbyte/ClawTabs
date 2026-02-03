@@ -6,6 +6,7 @@ interface ChannelPanelProps {
   channel: Channel
   messages: ChannelMessage[]
   gateways: GatewayConfig[]
+  typingAgentIds?: string[]
   onSendMessage: (channelId: string, text: string, targetAgentId?: string) => void
   onRename: (name: string) => void
   onEditMembers: () => void
@@ -30,6 +31,7 @@ export function ChannelPanel({
   channel,
   messages,
   gateways,
+  typingAgentIds = [],
   onSendMessage,
   onRename,
   onEditMembers
@@ -183,6 +185,24 @@ export function ChannelPanel({
               </div>
             )
           })
+        )}
+        {/* Typing indicators */}
+        {typingAgentIds.length > 0 && (
+          <div className="channel-typing">
+            {typingAgentIds.map(agentId => {
+              const color = getAgentColor(agentId, gateways)
+              const name = getAgentName(agentId, gateways)
+              return (
+                <span key={agentId} className="channel-typing-agent">
+                  <span className="channel-typing-dot" style={{ backgroundColor: color }}>●</span>
+                  <span style={{ color }}>{name}</span>
+                </span>
+              )
+            })}
+            <span className="channel-typing-text">
+              {typingAgentIds.length === 1 ? 'is typing...' : 'are typing...'}
+            </span>
+          </div>
         )}
         <div ref={messagesEndRef} />
       </div>
