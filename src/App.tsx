@@ -6,6 +6,7 @@ import { TopBar } from './components/TopBar'
 import { BottomBar } from './components/BottomBar'
 import { OpsPanel } from './components/OpsPanel'
 import { LandingPage } from './components/LandingPage'
+import { CommandPalette } from './components/CommandPalette'
 import type { Session, Message, SystemStatus } from './types'
 import { Gateway } from './gateway'
 import type { ConnectionStatus } from './gateway'
@@ -69,6 +70,8 @@ function App() {
   const gwRef = useRef<Gateway | null>(null)
   // Track streaming content per session
   const streamingRef = useRef<Map<string, { msgId: string; content: string }>>(new Map())
+  // Command palette state
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
   const status: SystemStatus = {
     connected: connStatus === 'connected',
@@ -379,6 +382,15 @@ function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Command palette: Ctrl+K or Cmd+K
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setCommandPaletteOpen(prev => !prev)
+        return
+      }
+      // Don't process other shortcuts if command palette is open
+      if (commandPaletteOpen) return
+      
       if (e.ctrlKey && e.key === 'n') {
         e.preventDefault()
         createSession()
@@ -409,7 +421,7 @@ function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [sessions, activeSessionId, createSession, closeSession])
+  }, [sessions, activeSessionId, createSession, closeSession, commandPaletteOpen])
 
   const toggleSplit = useCallback(() => {
     setIsSplit(prev => {
@@ -550,6 +562,17 @@ function App() {
         )}
       </div>
       <BottomBar sessionCount={sessions.length} />
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={selectSession}
+        onCreateSession={createSession}
+        onCloseSession={closeSession}
+        onToggleSplit={toggleSplit}
+        isSplit={isSplit}
+      />
     </div>
   )
 }
