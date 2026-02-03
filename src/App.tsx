@@ -12,6 +12,7 @@ import { AgentSidebar } from './components/AgentSidebar'
 import { ChannelSidebar } from './components/ChannelSidebar'
 import { ChannelPanel } from './components/ChannelPanel'
 import { ChannelModal } from './components/ChannelModal'
+import { StatsBar } from './components/StatsBar'
 import type { Session, Message, SystemStatus, GatewayConfig, Channel, ChannelMessage } from './types'
 import { Gateway } from './gateway'
 import type { ConnectionStatus } from './gateway'
@@ -841,6 +842,12 @@ function App() {
     setGatewayConfigs([...manager.getConfigs()])
   }, [])
 
+  const handleUpdateGateway = useCallback(async (id: string, updates: Partial<GatewayConfig>) => {
+    const manager = gatewayManagerRef.current
+    await manager.updateGateway(id, updates)
+    setGatewayConfigs([...manager.getConfigs()])
+  }, [])
+
   // Channel handlers
   const handleCreateChannel = useCallback(async (channel: Channel) => {
     await saveChannel(channel)
@@ -955,6 +962,7 @@ function App() {
           onDisconnect={handleDisconnectGateway}
           onTestConnection={handleTestConnection}
           onRenameGateway={handleRenameGateway}
+          onUpdateGateway={handleUpdateGateway}
         />
       </div>
     )
@@ -974,6 +982,12 @@ function App() {
         gatewayCount={gatewayConfigs.length}
         connectedGatewayCount={gatewayConfigs.filter(g => g.status === 'connected').length}
         onOpenGatewaySettings={() => setGatewaySettingsOpen(true)}
+      />
+      <StatsBar
+        activeAgentCount={gatewayConfigs.filter(g => g.status === 'connected').length}
+        totalAgentCount={gatewayConfigs.length}
+        taskCount={0} // TODO: Wire up when task system is implemented
+        sessionCount={sessions.length}
       />
       <div className="main-content">
         {activeTab === 'ops' ? (
@@ -1106,6 +1120,7 @@ function App() {
         onDisconnect={handleDisconnectGateway}
         onTestConnection={handleTestConnection}
         onRenameGateway={handleRenameGateway}
+        onUpdateGateway={handleUpdateGateway}
       />
       <ChannelModal
         isOpen={channelModalOpen}

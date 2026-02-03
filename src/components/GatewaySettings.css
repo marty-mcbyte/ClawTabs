@@ -362,3 +362,215 @@
   border: 1px solid var(--warning, #ffaa00);
   color: var(--warning, #ffaa00);
 }
+
+/* Enhanced Gateway Items with Profiles */
+.gateway-item {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.gateway-item-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gateway-avatar-display {
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary, #1a1a1a);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.gateway-avatar-display:hover {
+  background: var(--bg-secondary, #222);
+}
+
+.gateway-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.gateway-name-row .gateway-name {
+  margin: 0;
+  cursor: default;
+}
+
+.gateway-role-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--accent, #00ff88);
+  color: var(--bg-primary, #0a0a0a);
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.gateway-action-btn.icon {
+  padding: 6px 8px;
+}
+
+/* Profile Editor (Expanded) */
+.gateway-profile-editor {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border, #1a1a1a);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-row label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim, #666);
+}
+
+.profile-row input,
+.profile-row textarea {
+  background: var(--bg-tertiary, #1a1a1a);
+  border: 1px solid var(--border, #222);
+  color: var(--text-primary, #eee);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  border-radius: 3px;
+  transition: border-color 0.15s;
+}
+
+.profile-row input:focus,
+.profile-row textarea:focus {
+  outline: none;
+  border-color: var(--accent, #00ff88);
+}
+
+.profile-row textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* Role Selector */
+.role-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.role-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.role-preset {
+  background: var(--bg-tertiary, #1a1a1a);
+  border: 1px solid var(--border, #222);
+  color: var(--text-dim, #888);
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.role-preset:hover {
+  border-color: var(--accent, #00ff88);
+  color: var(--accent, #00ff88);
+}
+
+.role-preset.active {
+  background: var(--accent, #00ff88);
+  border-color: var(--accent, #00ff88);
+  color: var(--bg-primary, #0a0a0a);
+}
+
+/* Avatar Selector */
+.avatar-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.avatar-preset {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background: var(--bg-tertiary, #1a1a1a);
+  border: 2px solid var(--border, #222);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.avatar-preset:hover {
+  border-color: var(--accent, #00ff88);
+  transform: scale(1.1);
+}
+
+.avatar-preset.active {
+  border-color: var(--accent, #00ff88);
+  background: rgba(0, 255, 136, 0.15);
+}
+
+/* Form Divider */
+.gateway-form-divider {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim, #666);
+  padding: 16px 0 8px 0;
+  border-top: 1px solid var(--border, #1a1a1a);
+  margin-top: 8px;
+}
+
+/* Add textarea styles for Add Form */
+.gateway-form-row textarea {
+  background: var(--bg-secondary, #111);
+  border: 1px solid var(--border, #1a1a1a);
+  color: var(--text-primary, #eee);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  border-radius: 3px;
+  resize: vertical;
+  min-height: 60px;
+  transition: border-color 0.15s;
+}
+
+.gateway-form-row textarea:focus {
+  outline: none;
+  border-color: var(--accent, #00ff88);
+}
+
+.gateway-form-row textarea::placeholder {
+  color: var(--text-dim, #666);
+}

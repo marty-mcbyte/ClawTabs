@@ -151,9 +151,9 @@ export class GatewayManager {
   }
 
   /**
-   * Update gateway config (name, url, token)
+   * Update gateway config (name, url, token, profile fields)
    */
-  async updateGateway(id: string, updates: Partial<Pick<GatewayConfig, 'name' | 'url' | 'token'>>): Promise<void> {
+  async updateGateway(id: string, updates: Partial<GatewayConfig>): Promise<void> {
     const config = this.configs.get(id)
     if (!config) return
 
@@ -167,8 +167,12 @@ export class GatewayManager {
       }
     }
 
-    // Apply updates
-    Object.assign(config, updates)
+    // Apply updates (filter out undefined values to preserve existing)
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        (config as any)[key] = value
+      }
+    }
     await saveGateway(config)
 
     // Reconnect if was connected and credentials changed

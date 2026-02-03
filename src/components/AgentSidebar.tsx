@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { GatewayConfig, Session } from '../types'
+import type { GatewayConfig, Session, WorkingStatus } from '../types'
 import './AgentSidebar.css'
 
 interface AgentSidebarProps {
@@ -22,7 +22,21 @@ function getGatewayColor(index: number): string {
   return colors[index % colors.length]
 }
 
-function getStatusIcon(status: GatewayConfig['status']): string {
+function getWorkingStatusDisplay(status: WorkingStatus | undefined, isTyping: boolean): { text: string; className: string } {
+  // Infer working status from typing state if not explicitly set
+  if (isTyping) {
+    return { text: 'WORKING', className: 'working-status-working' }
+  }
+  switch (status) {
+    case 'working': return { text: 'WORKING', className: 'working-status-working' }
+    case 'busy': return { text: 'BUSY', className: 'working-status-busy' }
+    case 'standby': return { text: 'STANDBY', className: 'working-status-standby' }
+    case 'offline': return { text: 'OFFLINE', className: 'working-status-offline' }
+    default: return { text: 'STANDBY', className: 'working-status-standby' }
+  }
+}
+
+function getConnectionStatusIcon(status: GatewayConfig['status']): string {
   switch (status) {
     case 'connected': return '●'
     case 'connecting': return '◐'
@@ -32,7 +46,7 @@ function getStatusIcon(status: GatewayConfig['status']): string {
   }
 }
 
-function getStatusClass(status: GatewayConfig['status']): string {
+function getConnectionStatusClass(status: GatewayConfig['status']): string {
   switch (status) {
     case 'connected': return 'status-online'
     case 'connecting': return 'status-connecting'
@@ -120,34 +134,43 @@ export function AgentSidebar({
           const color = getGatewayColor(index)
           const sessionCount = sessionCounts[gateway.id] || 0
           const activeCount = activeCounts[gateway.id] || 0
+          const isTyping = activeCount > 0
+          const workingStatus = getWorkingStatusDisplay(gateway.workingStatus, isTyping)
 
           return (
             <div
               key={gateway.id}
               className={`agent-item ${selectedGatewayId === gateway.id ? 'agent-item-active' : ''} ${gateway.status !== 'connected' ? 'agent-item-disabled' : ''}`}
               onClick={() => gateway.status === 'connected' && onSelectGateway(gateway.id)}
-              title={gateway.error || gateway.url}
+              title={gateway.description || gateway.error || gateway.url}
             >
               <div className="agent-avatar" style={{ borderColor: color }}>
-                <span style={{ color }}>{gateway.name.charAt(0).toUpperCase()}</span>
-                <span className={`agent-status-dot ${getStatusClass(gateway.status)}`}>
-                  {getStatusIcon(gateway.status)}
+                <span className="agent-avatar-emoji">{gateway.avatar || gateway.name.charAt(0).toUpperCase()}</span>
+                <span className={`agent-status-dot ${getConnectionStatusClass(gateway.status)}`}>
+                  {getConnectionStatusIcon(gateway.status)}
                 </span>
               </div>
               <div className="agent-info">
-                <div className="agent-name">{gateway.name}</div>
+                <div className="agent-name-row">
+                  <span className="agent-name">{gateway.name}</span>
+                  {gateway.role && <span className="agent-role-tag">{gateway.role}</span>}
+                </div>
                 <div className="agent-meta">
                   {gateway.status === 'connected' ? (
                     <>
-                      {sessionCount} session{sessionCount !== 1 ? 's' : ''}
-                      {activeCount > 0 && <span className="agent-active"> • {activeCount} active</span>}
+                      <span className={`agent-working-status ${workingStatus.className}`}>
+                        ● {workingStatus.text}
+                      </span>
+                      {sessionCount > 0 && (
+                        <span className="agent-session-count"> • {sessionCount}</span>
+                      )}
                     </>
                   ) : gateway.status === 'connecting' ? (
-                    'Connecting...'
+                    <span className="agent-working-status working-status-connecting">◐ CONNECTING</span>
                   ) : gateway.status === 'error' ? (
-                    <span className="agent-error">Error</span>
+                    <span className="agent-working-status working-status-error">✕ ERROR</span>
                   ) : (
-                    'Offline'
+                    <span className="agent-working-status working-status-offline">○ OFFLINE</span>
                   )}
                 </div>
               </div>

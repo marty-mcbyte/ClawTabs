@@ -107,6 +107,17 @@
   overflow: hidden;
 }
 
+.agent-avatar-emoji {
+  font-size: 18px;
+}
+
+.agent-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
 .agent-name {
   font-size: 13px;
   font-weight: 500;
@@ -116,12 +127,70 @@
   text-overflow: ellipsis;
 }
 
+.agent-role-tag {
+  font-size: 9px;
+  padding: 1px 5px;
+  background: rgba(0, 255, 157, 0.15);
+  color: var(--accent);
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
 .agent-meta {
   font-size: 11px;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Working Status Styles */
+.agent-working-status {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.working-status-working {
+  color: var(--accent);
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.working-status-busy {
+  color: var(--warning, #ffe66d);
+}
+
+.working-status-standby {
+  color: var(--text-dim);
+}
+
+.working-status-offline {
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+
+.working-status-connecting {
+  color: var(--warning, #ffe66d);
+  animation: pulse 1.5s infinite;
+}
+
+.working-status-error {
+  color: var(--error, #ff6b6b);
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.agent-session-count {
+  font-size: 10px;
+  color: var(--text-dim);
+  opacity: 0.8;
 }
 
 .agent-active {
