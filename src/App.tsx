@@ -31,9 +31,17 @@ function isOpsSession(session: { id: string; name: string }): boolean {
 function getConfigFromUrl() {
   const params = new URLSearchParams(window.location.search)
   const hasExplicitGateway = params.has('gateway') || params.has('token')
+  
+  let url = params.get('gateway') || `ws://${window.location.hostname}:18789`
+  
+  // Upgrade ws:// to wss:// when page is served over HTTPS (browsers block mixed content)
+  if (window.location.protocol === 'https:' && url.startsWith('ws://')) {
+    url = 'wss://' + url.slice(5)
+  }
+  
   return {
     token: params.get('token') || 'eae9203476a753ae79acfb39e0e85fbc81ff667a3e667bb4',
-    url: params.get('gateway') || `ws://${window.location.hostname}:18789`,
+    url,
     hasExplicitGateway,
   }
 }
@@ -63,6 +71,13 @@ function App() {
   // Initialize gateway
   useEffect(() => {
     const { url, token, hasExplicitGateway } = getConfigFromUrl()
+    
+    // If no explicit gateway URL provided, skip connection and show landing immediately
+    if (!hasExplicitGateway) {
+      setShowLanding(true)
+      return
+    }
+    
     const gw = new Gateway(url, token)
     gwRef.current = gw
 
