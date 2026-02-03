@@ -160,6 +160,23 @@ body {
 .status-connected { color: var(--accent); font-weight: 600; }
 .status-disconnected { color: #ff6b6b; font-weight: 600; }
 
+.gateway-settings-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-radius: 3px;
+}
+
+.gateway-settings-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ============ MAIN CONTENT ============ */
 .main-content {
   flex: 1;
@@ -282,6 +299,8 @@ body {
 
 .active-dot { color: var(--accent); font-size: 8px; }
 .typing-dot { color: var(--accent); font-size: 8px; animation: pulse 1.5s infinite; }
+.gateway-dot { font-size: 10px; margin-right: 2px; opacity: 0.9; }
+.split-dot { color: var(--text-dim); font-size: 10px; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }

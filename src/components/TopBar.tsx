@@ -8,9 +8,23 @@ interface TopBarProps {
   opsCount?: number
   isSplit?: boolean
   onToggleSplit?: () => void
+  gatewayCount?: number
+  connectedGatewayCount?: number
+  onOpenGatewaySettings?: () => void
 }
 
-export function TopBar({ status, activeTab, onTabChange, chatCount = 0, opsCount = 0, isSplit, onToggleSplit }: TopBarProps) {
+export function TopBar({ 
+  status, 
+  activeTab, 
+  onTabChange, 
+  chatCount = 0, 
+  opsCount = 0, 
+  isSplit, 
+  onToggleSplit,
+  gatewayCount = 0,
+  connectedGatewayCount = 0,
+  onOpenGatewaySettings
+}: TopBarProps) {
   const now = new Date()
   const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 
@@ -54,6 +68,15 @@ export function TopBar({ status, activeTab, onTabChange, chatCount = 0, opsCount
         <span className={`top-bar-status ${status.connected ? 'status-connected' : 'status-disconnected'}`}>
           ◉ {status.connected ? 'CONNECTED' : 'DISCONNECTED'}
         </span>
+        {onOpenGatewaySettings && (
+          <button 
+            className="gateway-settings-btn"
+            onClick={onOpenGatewaySettings}
+            title="Gateway Settings"
+          >
+            ⚙ {connectedGatewayCount}/{gatewayCount}
+          </button>
+        )}
       </div>
     </div>
   )

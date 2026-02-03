@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import type { Session } from '../types'
+import type { Session, GatewayConfig } from '../types'
+
+// Generate consistent color for gateway ID
+function getGatewayColor(gatewayId: string | undefined, gateways: GatewayConfig[]): string {
+  if (!gatewayId) return 'var(--text-dim)'
+  const colors = ['#00ff9d', '#ff6b6b', '#4ecdc4', '#ffe66d', '#a855f7', '#06b6d4', '#f97316']
+  const index = gateways.findIndex(g => g.id === gatewayId)
+  return colors[index % colors.length]
+}
 
 interface SidebarProps {
   sessions: Session[]
@@ -14,11 +22,13 @@ interface SidebarProps {
   getTimeAgo: (ts: number) => string
   sessionCount: number
   splitSessionId?: string
+  gateways?: GatewayConfig[]
 }
 
 export function Sidebar({
   sessions, activeSessionId, onSelect, onCreate, onClose, onRename,
-  searchQuery, onSearchChange, getPreview, getTimeAgo, sessionCount, splitSessionId
+  searchQuery, onSearchChange, getPreview, getTimeAgo, sessionCount, splitSessionId,
+  gateways = []
 }: SidebarProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -84,6 +94,13 @@ export function Sidebar({
               onClick={() => onSelect(session.id)}
             >
               <div className="sidebar-item-indicator">
+                {gateways.length > 1 && session.gatewayId && (
+                  <span 
+                    className="gateway-dot" 
+                    style={{ color: getGatewayColor(session.gatewayId, gateways) }}
+                    title={gateways.find(g => g.id === session.gatewayId)?.name || 'Unknown'}
+                  >●</span>
+                )}
                 {session.id === activeSessionId && <span className="active-dot">●</span>}
                 {session.id === splitSessionId && <span className="split-dot">⫿</span>}
                 {session.isTyping && <span className="typing-dot">◉</span>}
