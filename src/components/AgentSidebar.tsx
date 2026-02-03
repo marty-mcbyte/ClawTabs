@@ -10,6 +10,12 @@ interface AgentSidebarProps {
   onOpenSettings: () => void
 }
 
+// Check if session is an ops/subagent session (same logic as App.tsx)
+const OPS_PATTERNS = [/subagent/i, /sub-agent/i, /isolated/i, /cron/i, /heartbeat/i, /background/i, /worker/i, /spawned/i]
+function isOpsSession(session: { id: string; name: string }): boolean {
+  return OPS_PATTERNS.some(p => p.test(session.name) || p.test(session.id))
+}
+
 // Generate consistent color for gateway ID
 function getGatewayColor(index: number): string {
   const colors = ['#00ff9d', '#ff6b6b', '#4ecdc4', '#ffe66d', '#a855f7', '#06b6d4', '#f97316']
@@ -43,15 +49,20 @@ export function AgentSidebar({
   onSelectGateway,
   onOpenSettings
 }: AgentSidebarProps) {
-  // Count sessions per gateway
+  // Count chat sessions per gateway (excludes ops/subagent sessions)
   const sessionCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const session of sessions) {
-      if (session.gatewayId) {
+      if (session.gatewayId && !isOpsSession(session)) {
         counts[session.gatewayId] = (counts[session.gatewayId] || 0) + 1
       }
     }
     return counts
+  }, [sessions])
+  
+  // Total chat sessions (for "All Agents" count)
+  const totalChatSessions = useMemo(() => {
+    return sessions.filter(s => !isOpsSession(s)).length
   }, [sessions])
 
   // Count active (typing) sessions per gateway
@@ -85,7 +96,7 @@ export function AgentSidebar({
           </div>
           <div className="agent-info">
             <div className="agent-name">All Agents</div>
-            <div className="agent-meta">{sessions.length} sessions</div>
+            <div className="agent-meta">{totalChatSessions} sessions</div>
           </div>
         </div>
 

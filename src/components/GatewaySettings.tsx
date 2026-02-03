@@ -12,6 +12,7 @@ interface GatewaySettingsProps {
   onConnect: (id: string) => Promise<void>
   onDisconnect: (id: string) => Promise<void>
   onTestConnection: (url: string, token: string) => Promise<{ success: boolean; error?: string }>
+  onRenameGateway?: (id: string, name: string) => Promise<void>
 }
 
 export function GatewaySettings({
@@ -22,7 +23,8 @@ export function GatewaySettings({
   onRemoveGateway,
   onConnect,
   onDisconnect,
-  onTestConnection
+  onTestConnection,
+  onRenameGateway
 }: GatewaySettingsProps) {
   const [newName, setNewName] = useState('')
   const [newUrl, setNewUrl] = useState('')
@@ -30,6 +32,21 @@ export function GatewaySettings({
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null)
   const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  
+  const handleStartEdit = (gateway: GatewayConfig) => {
+    setEditingId(gateway.id)
+    setEditName(gateway.name)
+  }
+  
+  const handleSaveEdit = async () => {
+    if (editingId && editName.trim() && onRenameGateway) {
+      await onRenameGateway(editingId, editName.trim())
+    }
+    setEditingId(null)
+    setEditName('')
+  }
 
   const resetForm = useCallback(() => {
     setNewName('')
@@ -58,9 +75,15 @@ export function GatewaySettings({
     if (!newUrl || !newToken) return
     setAdding(true)
     try {
+      // Generate a friendly default name if not provided
+      let defaultName = newName
+      if (!defaultName) {
+        const agentNum = gateways.length + 1
+        defaultName = `Agent ${agentNum}`
+      }
       const config: GatewayConfig = {
         id: generateId(),
-        name: newName || new URL(newUrl).hostname,
+        name: defaultName,
         url: newUrl,
         token: newToken,
         status: 'disconnected',
@@ -73,7 +96,7 @@ export function GatewaySettings({
     } finally {
       setAdding(false)
     }
-  }, [newName, newUrl, newToken, onAddGateway, resetForm])
+  }, [newName, newUrl, newToken, onAddGateway, resetForm, gateways.length])
 
   const handleOverlayClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -106,7 +129,28 @@ export function GatewaySettings({
                 >
                   <div className={`gateway-status-indicator ${gateway.status}`} />
                   <div className="gateway-info">
-                    <div className="gateway-name">{gateway.name}</div>
+                    {editingId === gateway.id ? (
+                      <input
+                        className="gateway-name-edit"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        onBlur={handleSaveEdit}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleSaveEdit()
+                          if (e.key === 'Escape') { setEditingId(null); setEditName('') }
+                        }}
+                        autoFocus
+                      />
+                    ) : (
+                      <div 
+                        className="gateway-name" 
+                        onClick={() => handleStartEdit(gateway)}
+                        title="Click to rename"
+                      >
+                        {gateway.name}
+                        <span className="gateway-edit-icon">✏</span>
+                      </div>
+                    )}
                     <div className="gateway-url">{gateway.url}</div>
                     {gateway.error && (
                       <div className="gateway-error-msg">{gateway.error}</div>

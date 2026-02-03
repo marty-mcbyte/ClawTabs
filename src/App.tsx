@@ -399,9 +399,15 @@ function App() {
         const existingByUrl = storedGateways.find(g => g.url === url)
         if (!existingByUrl) {
           // Add the URL param gateway
+          const parsedUrl = new URL(url)
+          const existingCount = storedGateways.length
+          // Generate a friendly name: "Agent 1", "Agent 2", etc. or use hostname:port if non-standard
+          const friendlyName = parsedUrl.port && parsedUrl.port !== '18789' 
+            ? `Agent (${parsedUrl.hostname}:${parsedUrl.port})`
+            : `Agent ${existingCount + 1}`
           const newConfig: GatewayConfig = {
             id: generateDbId(),
-            name: new URL(url).hostname,
+            name: friendlyName,
             url,
             token,
             status: 'disconnected',
@@ -829,6 +835,12 @@ function App() {
     return manager.testConnection(url, token)
   }, [])
 
+  const handleRenameGateway = useCallback(async (id: string, name: string) => {
+    const manager = gatewayManagerRef.current
+    await manager.updateGateway(id, { name })
+    setGatewayConfigs([...manager.getConfigs()])
+  }, [])
+
   // Channel handlers
   const handleCreateChannel = useCallback(async (channel: Channel) => {
     await saveChannel(channel)
@@ -942,6 +954,7 @@ function App() {
           onConnect={handleConnectGateway}
           onDisconnect={handleDisconnectGateway}
           onTestConnection={handleTestConnection}
+          onRenameGateway={handleRenameGateway}
         />
       </div>
     )
@@ -1092,6 +1105,7 @@ function App() {
         onConnect={handleConnectGateway}
         onDisconnect={handleDisconnectGateway}
         onTestConnection={handleTestConnection}
+        onRenameGateway={handleRenameGateway}
       />
       <ChannelModal
         isOpen={channelModalOpen}

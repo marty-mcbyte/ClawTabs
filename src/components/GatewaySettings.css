@@ -159,6 +159,37 @@
   font-weight: 500;
   color: var(--text-primary, #eee);
   margin-bottom: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gateway-name:hover {
+  color: var(--accent, #00ff88);
+}
+
+.gateway-edit-icon {
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.gateway-name:hover .gateway-edit-icon {
+  opacity: 0.7;
+}
+
+.gateway-name-edit {
+  background: var(--bg-tertiary, #1a1a1a);
+  border: 1px solid var(--accent, #00ff88);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #eee);
+  outline: none;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .gateway-url {
