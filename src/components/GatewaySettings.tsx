@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import type { GatewayConfig } from '../types'
 import { generateId } from '../store/db'
+import { discoverGateways, getCachedDiscoveredGateways, cacheDiscoveredGateways, type DiscoveredGateway } from '../gateway'
 import './GatewaySettings.css'
 
 interface GatewaySettingsProps {
@@ -47,6 +48,9 @@ export function GatewaySettings({
   const [editDescription, setEditDescription] = useState('')
   const [editAvatar, setEditAvatar] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [discoveredGateways, setDiscoveredGateways] = useState<DiscoveredGateway[]>([])
+  const [isScanning, setIsScanning] = useState(false)
+  const [showDiscovery, setShowDiscovery] = useState(false)
   
   const handleStartEdit = (gateway: GatewayConfig) => {
     setEditingId(gateway.id)
@@ -135,6 +139,36 @@ export function GatewaySettings({
       onClose()
     }
   }, [onClose])
+
+  const handleScanForGateways = useCallback(async () => {
+    setIsScanning(true)
+    setShowDiscovery(true)
+
+    // Check cache first for instant results
+    const cached = getCachedDiscoveredGateways()
+    if (cached) {
+      setDiscoveredGateways(cached)
+    }
+
+    try {
+      const discovered = await discoverGateways(5000)
+      setDiscoveredGateways(discovered)
+      cacheDiscoveredGateways(discovered)
+    } catch (err) {
+      console.error('Discovery failed:', err)
+    } finally {
+      setIsScanning(false)
+    }
+  }, [])
+
+  const handleSelectDiscoveredGateway = useCallback((gateway: DiscoveredGateway) => {
+    setNewUrl(gateway.url)
+    setShowDiscovery(false)
+  }, [])
+
+  const handleCloseDiscovery = useCallback(() => {
+    setShowDiscovery(false)
+  }, [])
 
   if (!isOpen) return null
 
@@ -295,9 +329,58 @@ export function GatewaySettings({
             )}
           </div>
 
+          {/* Discovery Section */}
+          {showDiscovery && (
+            <div className="gateway-discovery-section">
+              <div className="gateway-discovery-header">
+                <h3>Discovered Gateways</h3>
+                <button className="gateway-discovery-close" onClick={handleCloseDiscovery}>×</button>
+              </div>
+              {isScanning && discoveredGateways.length === 0 && (
+                <div className="gateway-discovery-loading">
+                  <span className="discovery-spinner" />
+                  <span>Scanning local network for OpenClaw gateways...</span>
+                </div>
+              )}
+              {!isScanning && discoveredGateways.length === 0 && (
+                <div className="gateway-discovery-empty">
+                  No gateways found. Make sure your OpenClaw gateway is running and on the same network.
+                </div>
+              )}
+              {discoveredGateways.length > 0 && (
+                <div className="gateway-discovery-list">
+                  {discoveredGateways.map((gateway, index) => (
+                    <button
+                      key={`${gateway.ip}:${gateway.port}`}
+                      className="gateway-discovery-item"
+                      onClick={() => handleSelectDiscoveredGateway(gateway)}
+                    >
+                      <span className="discovery-item-number">{index + 1}</span>
+                      <span className="discovery-item-url">{gateway.url}</span>
+                      <span className="discovery-item-latency">{gateway.latency}ms</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Add Gateway Form */}
           <div className="gateway-add-section">
-            <h3>Add Gateway</h3>
+            <div className="gateway-add-header">
+              <h3>Add Gateway</h3>
+              <button
+                className="gateway-scan-btn"
+                onClick={handleScanForGateways}
+                disabled={isScanning}
+              >
+                {isScanning ? (
+                  <><span className="discovery-spinner-sm" /> Scanning...</>
+                ) : (
+                  <>🔍 Scan for Gateways</>
+                )}
+              </button>
+            </div>
             <div className="gateway-form">
               <div className="gateway-form-row">
                 <label>Gateway URL</label>

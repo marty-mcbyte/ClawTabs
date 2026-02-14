@@ -2,6 +2,157 @@
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected'
 
+// Common ports to scan for OpenClaw gateways
+const GATEWAY_PORTS = [18789, 8080, 3000]
+
+// Local subnet patterns for auto-discovery
+const SUBNET_PATTERNS = [
+  '192.168.1',
+  '192.168.0',
+  '10.0.0'
+]
+
+export interface DiscoveredGateway {
+  url: string
+  ip: string
+  port: number
+  latency: number
+  lastSeen: number
+}
+
+// Scan a single IP:port with timeout
+async function probeGateway(ip: string, port: number, timeoutMs = 500): Promise<DiscoveredGateway | null> {
+  const url = `ws://${ip}:${port}`
+  const startTime = Date.now()
+
+  return new Promise((resolve) => {
+    try {
+      const ws = new WebSocket(url)
+
+      const timeout = setTimeout(() => {
+        ws.close()
+        resolve(null)
+      }, timeoutMs)
+
+      ws.onopen = () => {
+        clearTimeout(timeout)
+        ws.close()
+        resolve({
+          url,
+          ip,
+          port,
+          latency: Date.now() - startTime,
+          lastSeen: Date.now()
+        })
+      }
+
+      ws.onerror = () => {
+        clearTimeout(timeout)
+        resolve(null)
+      }
+
+      ws.onclose = () => {
+        clearTimeout(timeout)
+        resolve(null)
+      }
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
+// Generate IP addresses to scan from subnet patterns
+function generateIPs(subnets: string[]): string[] {
+  const ips: string[] = []
+
+  // Always include localhost
+  ips.push('127.0.0.1')
+  ips.push('localhost')
+
+  // Generate IPs from subnets
+  for (const subnet of subnets) {
+    for (let i = 1; i <= 254; i++) {
+      ips.push(`${subnet}.${i}`)
+    }
+  }
+
+  return ips
+}
+
+// Discover gateways on the local network
+export async function discoverGateways(maxDurationMs = 5000): Promise<DiscoveredGateway[]> {
+  const startTime = Date.now()
+  const ips = generateIPs(SUBNET_PATTERNS)
+
+  // Create all probe promises
+  const probes: Promise<DiscoveredGateway | null>[] = []
+
+  for (const ip of ips) {
+    for (const port of GATEWAY_PORTS) {
+      // Calculate remaining time for this probe
+      const elapsed = Date.now() - startTime
+      const remaining = maxDurationMs - elapsed
+      const timeout = Math.max(100, Math.min(500, remaining))
+
+      if (remaining <= 0) break
+
+      probes.push(probeGateway(ip, port, timeout))
+    }
+  }
+
+  // Run probes in batches to avoid overwhelming the network
+  const batchSize = 50
+  const results: DiscoveredGateway[] = []
+
+  for (let i = 0; i < probes.length; i += batchSize) {
+    const elapsed = Date.now() - startTime
+    if (elapsed >= maxDurationMs) break
+
+    const batch = probes.slice(i, i + batchSize)
+    const batchResults = await Promise.all(batch)
+
+    for (const result of batchResults) {
+      if (result) {
+        results.push(result)
+      }
+    }
+  }
+
+  // Sort by latency (fastest first)
+  results.sort((a, b) => a.latency - b.latency)
+
+  return results
+}
+
+// Cache helpers for discovered gateways
+const DISCOVERY_CACHE_KEY = 'clawtabs_discovered_gateways'
+const DISCOVERY_CACHE_TTL = 1000 * 60 * 5 // 5 minutes
+
+export function getCachedDiscoveredGateways(): DiscoveredGateway[] | null {
+  try {
+    const cached = localStorage.getItem(DISCOVERY_CACHE_KEY)
+    if (!cached) return null
+
+    const { gateways, timestamp } = JSON.parse(cached)
+    if (Date.now() - timestamp > DISCOVERY_CACHE_TTL) return null
+
+    return gateways
+  } catch {
+    return null
+  }
+}
+
+export function cacheDiscoveredGateways(gateways: DiscoveredGateway[]): void {
+  try {
+    localStorage.setItem(DISCOVERY_CACHE_KEY, JSON.stringify({
+      gateways,
+      timestamp: Date.now()
+    }))
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 interface PendingRequest {
   resolve: (payload: any) => void
   reject: (error: any) => void
