@@ -338,4 +338,24 @@ export class Gateway {
   async renameSession(sessionKey: string, name: string): Promise<void> {
     await this.request('session.update', { sessionKey, displayName: name })
   }
+
+  // Task synchronization - broadcast task updates to other connected clients
+  async broadcastTaskUpdate(task: any, operation: 'create' | 'update' | 'delete'): Promise<void> {
+    // Use a special system session for task sync broadcasts
+    // Other ClawTabs clients will parse this and update their local state
+    const syncMessage = `[CLAWTABS_TASK_SYNC]${JSON.stringify({
+      type: 'task_sync',
+      operation,
+      task,
+      timestamp: Date.now(),
+      source: 'kanban'
+    })}[/CLAWTABS_TASK_SYNC]`
+    
+    // Send to a system session that other clients can monitor
+    try {
+      await this.chatSend('agent:main', syncMessage)
+    } catch (err) {
+      console.error('[ClawTabs] Failed to broadcast task update:', err)
+    }
+  }
 }

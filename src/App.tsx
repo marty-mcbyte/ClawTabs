@@ -2,8 +2,6 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { ChatPanel } from './components/ChatPanel'
 import { SplitView } from './components/SplitView'
-import { TopBar } from './components/TopBar'
-import { BottomBar } from './components/BottomBar'
 import { OpsPanel } from './components/OpsPanel'
 import { LandingPage } from './components/LandingPage'
 import { CommandPalette } from './components/CommandPalette'
@@ -12,12 +10,14 @@ import { AgentSidebar } from './components/AgentSidebar'
 import { ChannelSidebar } from './components/ChannelSidebar'
 import { ChannelPanel } from './components/ChannelPanel'
 import { ChannelModal } from './components/ChannelModal'
-import { StatsBar } from './components/StatsBar'
 import { LiveFeed } from './components/LiveFeed'
 import { TaskModal } from './components/TaskModal'
 import { KanbanBoard } from './components/KanbanBoard'
 import { MissionControl } from './components/MissionControl'
-import type { Session, Message, SystemStatus, GatewayConfig, Channel, ChannelMessage, ActivityEvent, Task } from './types'
+// New Mission Control components
+import { TopNav, MobileNav, type NavTabType } from './components/TopNav'
+import { HomePage } from './components/HomePage'
+import type { Session, Message, GatewayConfig, Channel, ChannelMessage, ActivityEvent, Task } from './types'
 import { Gateway } from './gateway'
 import type { ConnectionStatus } from './gateway'
 import { getGatewayManager } from './store/GatewayManager'
@@ -34,6 +34,7 @@ import {
   deleteTask as deleteTaskDb
 } from './store/db'
 import './App.css'
+import './glass-theme.css'
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 10)
@@ -96,7 +97,7 @@ function getConfigFromUrl() {
 function App() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [activeSessionId, setActiveSessionId] = useState('')
-  const [activeTab, setActiveTab] = useState<'chat' | 'ops'>('chat')
+  const [activeTab, setActiveTab] = useState<NavTabType>('home')
   const [searchQuery, setSearchQuery] = useState('')
   const [connStatus, setConnStatus] = useState<ConnectionStatus>('disconnected')
   const [currentRunId, setCurrentRunId] = useState<string | null>(null)
@@ -149,7 +150,7 @@ function App() {
   
   // Activity feed state
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
-  const [showLiveFeed, setShowLiveFeed] = useState(true)
+  const [showLiveFeed] = useState(true)
   const MAX_ACTIVITY_EVENTS = 100
   
   // Task state
@@ -194,12 +195,7 @@ function App() {
     }
   }, [])
 
-  const status: SystemStatus = {
-    connected: connStatus === 'connected',
-    sysStatus: connStatus === 'connected' ? 'NOMINAL' : connStatus === 'connecting' ? 'DEGRADED' : 'ERROR',
-    memStatus: 'OK',
-    netStatus: connStatus === 'connected' ? 'STABLE' : connStatus === 'connecting' ? 'UNSTABLE' : 'DOWN'
-  }
+  // Connection status for UI - derived from connStatus
 
   // Persist split state
   useEffect(() => {
@@ -237,6 +233,7 @@ function App() {
     // Parse task status updates from agent messages
     // Patterns: [TASK #abc123 STATUS:in_progress], [TASK #abc123 COMPLETE], [TASK #abc123 DONE]
     const parseTaskStatusUpdate = (text: string): { taskIdSuffix: string; newStatus: Task['status'] } | null => {
+      // ... existing implementation stays the same
       // Match patterns like [TASK #abc123 STATUS:in_progress] or [TASK #abc123 COMPLETE]
       const statusMatch = text.match(/\[TASK #([a-z0-9]+)\s+STATUS:(\w+)\]/i)
       if (statusMatch) {
@@ -271,6 +268,26 @@ function App() {
         }
       }
       
+      return null
+    }
+
+    // Parse task sync messages from other ClawTabs clients
+    // Format: [CLAWTABS_TASK_SYNC]{"type":"task_sync","operation":"update","task":{...}}[/CLAWTABS_TASK_SYNC]
+    const parseTaskSyncMessage = (text: string): { operation: 'create' | 'update' | 'delete'; task: Task } | null => {
+      const syncMatch = text.match(/\[CLAWTABS_TASK_SYNC\](.+?)\[\/CLAWTABS_TASK_SYNC\]/)
+      if (syncMatch) {
+        try {
+          const data = JSON.parse(syncMatch[1])
+          if (data.type === 'task_sync' && data.task) {
+            return {
+              operation: data.operation,
+              task: data.task as Task
+            }
+          }
+        } catch (e) {
+          console.error('[ClawTabs] Failed to parse task sync message:', e)
+        }
+      }
       return null
     }
 
@@ -464,6 +481,41 @@ function App() {
               details: text.substring(0, 150) + (text.length > 150 ? '...' : ''),
               source: channelName ? `#${channelName}` : sessionKey
             })
+            
+            // Check for task sync messages from other ClawTabs clients
+            const taskSync = parseTaskSyncMessage(text)
+            if (taskSync) {
+              console.log('[ClawTabs] Task sync received from another client:', taskSync.operation, taskSync.task.id)
+              // Apply the sync to local state without broadcasting (to avoid loops)
+              setTasks(prev => {
+                const existingTask = prev.find(t => t.id === taskSync.task.id)
+                if (taskSync.operation === 'delete') {
+                  // Remove the task
+                  if (existingTask) {
+                    deleteTaskDb(taskSync.task.id).catch(console.error)
+                    return prev.filter(t => t.id !== taskSync.task.id)
+                  }
+                  return prev
+                } else if (taskSync.operation === 'create') {
+                  // Add the task if it doesn't exist
+                  if (!existingTask) {
+                    saveTask(taskSync.task).catch(console.error)
+                    return [taskSync.task, ...prev]
+                  }
+                  return prev
+                } else if (taskSync.operation === 'update') {
+                  // Update the task if it exists and is older
+                  if (existingTask && existingTask.updatedAt < taskSync.task.updatedAt) {
+                    saveTask(taskSync.task).catch(console.error)
+                    return prev.map(t => t.id === taskSync.task.id ? taskSync.task : t)
+                  }
+                  return prev
+                }
+                return prev
+              })
+              // Don't process further - this is an internal sync message
+              return
+            }
             
             // Check for task status updates in agent messages
             const taskUpdate = parseTaskStatusUpdate(text)
@@ -903,10 +955,10 @@ function App() {
         e.preventDefault()
         setTaskModalOpen(true)
       }
-      // Ctrl+M - Toggle Mission Control
+      // Ctrl+M - Toggle Mission Control (Home)
       if (e.ctrlKey && e.key === 'm') {
         e.preventDefault()
-        setViewMode(v => v === 'mission' ? 'sessions' : 'mission')
+        setActiveTab(t => t === 'home' ? 'chat' : 'home')
       }
     }
     window.addEventListener('keydown', handler)
@@ -1106,6 +1158,13 @@ function App() {
     await saveTask(task)
     setTasks(prev => [task, ...prev])
     
+    // Broadcast task creation to other connected clients
+    const manager = gatewayManagerRef.current
+    const firstConnected = manager.getFirstConnected()
+    if (firstConnected?.gateway) {
+      firstConnected.gateway.broadcastTaskUpdate(task, 'create').catch(() => {})
+    }
+    
     // Add activity event
     addActivityEventRef.current({
       agentId: task.assignedAgentId || 'system',
@@ -1220,6 +1279,13 @@ Or I can drag the card manually in Kanban.`
     await saveTask(task)
     setTasks(prev => prev.map(t => t.id === task.id ? task : t))
     
+    // Broadcast task update to other connected clients
+    const manager = gatewayManagerRef.current
+    const firstConnected = manager.getFirstConnected()
+    if (firstConnected?.gateway) {
+      firstConnected.gateway.broadcastTaskUpdate(task, 'update').catch(() => {})
+    }
+    
     // Dispatch to agent if task just moved to 'assigned' status with an agent
     const wasJustAssigned = task.status === 'assigned' && 
       task.assignedAgentId && 
@@ -1286,9 +1352,19 @@ Update: \`[TASK #${taskId} ACTIVE]\` / \`[TASK #${taskId} DONE]\``
   }, [tasks, gatewayConfigs, sessions, activeSessionId])
 
   const handleDeleteTask = useCallback(async (id: string) => {
+    const taskToDelete = tasks.find(t => t.id === id)
     await deleteTaskDb(id)
     setTasks(prev => prev.filter(t => t.id !== id))
-  }, [])
+    
+    // Broadcast task deletion to other connected clients
+    if (taskToDelete) {
+      const manager = gatewayManagerRef.current
+      const firstConnected = manager.getFirstConnected()
+      if (firstConnected?.gateway) {
+        firstConnected.gateway.broadcastTaskUpdate(taskToDelete, 'delete').catch(() => {})
+      }
+    }
+  }, [tasks])
 
   const handleImportTasks = useCallback(async (importedTasks: Task[]) => {
     // Merge imported tasks - update existing, add new
@@ -1312,18 +1388,16 @@ Update: \`[TASK #${taskId} ACTIVE]\` / \`[TASK #${taskId} DONE]\``
     return (
       <div className="app">
         <div className="scanline" />
-        <TopBar 
-          status={status} 
-          activeTab={activeTab} 
+        <TopNav 
+          activeTab={activeTab}
           onTabChange={setActiveTab}
-          gatewayCount={gatewayConfigs.length}
-          connectedGatewayCount={gatewayConfigs.filter(g => g.status === 'connected').length}
-          onOpenGatewaySettings={() => setGatewaySettingsOpen(true)}
+          connectedCount={gatewayConfigs.filter(g => g.status === 'connected').length}
+          totalCount={gatewayConfigs.length}
         />
-        <div className="main-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)' }}>
+        <div className="main-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)' }}>
           {connStatus === 'connecting' ? 'Connecting to gateway...' : connStatus === 'disconnected' ? 'Disconnected — retrying...' : 'Loading sessions...'}
         </div>
-        <BottomBar sessionCount={0} />
+        <MobileNav activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab)} />
         <GatewaySettings
           isOpen={gatewaySettingsOpen}
           onClose={() => setGatewaySettingsOpen(false)}
@@ -1340,32 +1414,47 @@ Update: \`[TASK #${taskId} ACTIVE]\` / \`[TASK #${taskId} DONE]\``
     )
   }
 
+  // Navigation handler that maps new tabs to legacy view modes
+  const handleNavChange = useCallback((tab: NavTabType) => {
+    setActiveTab(tab)
+    // Map new tabs to legacy view modes
+    switch(tab) {
+      case 'chat':
+        setViewMode('sessions')
+        break
+      case 'comms':
+        setViewMode('channels')
+        break
+      case 'content':
+        setViewMode('tasks')
+        break
+      case 'agents':
+        setViewMode('sessions')
+        break
+      case 'knowledge':
+        setViewMode('mission')
+        break
+    }
+  }, [])
+
   return (
     <div className="app">
       <div className="scanline" />
-      <TopBar
-        status={status}
+      <TopNav
         activeTab={activeTab}
-        onTabChange={setActiveTab}
-        chatCount={chatSessions.length}
-        opsCount={opsSessions.length}
-        isSplit={isSplit}
-        onToggleSplit={toggleSplit}
-        gatewayCount={gatewayConfigs.length}
-        connectedGatewayCount={gatewayConfigs.filter(g => g.status === 'connected').length}
-        onOpenGatewaySettings={() => setGatewaySettingsOpen(true)}
-      />
-      <StatsBar
-        activeAgentCount={gatewayConfigs.filter(g => g.status === 'connected').length}
-        totalAgentCount={gatewayConfigs.length}
-        taskCount={tasks.filter(t => t.status !== 'done').length}
-        sessionCount={sessions.length}
-        showFeed={showLiveFeed}
-        onToggleFeed={() => setShowLiveFeed(prev => !prev)}
-        onCreateTask={() => setTaskModalOpen(true)}
+        onTabChange={handleNavChange}
+        connectedCount={gatewayConfigs.filter(g => g.status === 'connected').length}
+        totalCount={gatewayConfigs.length}
       />
       <div className="main-content">
-        {activeTab === 'ops' ? (
+        {activeTab === 'home' ? (
+          <HomePage
+            gateways={gatewayConfigs}
+            tasks={tasks}
+            events={activityEvents}
+            sessionCount={sessions.length}
+          />
+        ) : activeTab === 'ops' ? (
           <OpsPanel
             sessions={opsSessions}
             allSessions={sessions}
@@ -1518,13 +1607,9 @@ Update: \`[TASK #${taskId} ACTIVE]\` / \`[TASK #${taskId} DONE]\``
           </>
         )}
       </div>
-      <BottomBar 
-        sessionCount={sessions.length} 
-        channelCount={channels.length}
-        taskCount={tasks.filter(t => t.status !== 'done').length}
-        totalUnread={Array.from(channelUnreadCounts.values()).reduce((a, b) => a + b, 0)}
-        viewMode={viewMode}
-        onViewChange={setViewMode}
+      <MobileNav
+        activeTab={activeTab}
+        onTabChange={handleNavChange}
       />
       <CommandPalette
         isOpen={commandPaletteOpen}
